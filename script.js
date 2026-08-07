@@ -2,12 +2,24 @@
 
 /* =========================================================
    WebScan Pro
-   Step 1 - Stable Scanner Foundation
+   Step 2 - Smart Document Scanner Engine
+
+   Features:
+   - Camera handling
+   - OpenCV readiness
+   - Automatic document detection
+   - 4-corner detection
+   - Perspective correction
+   - Manual crop fallback
+   - Magic Color / Original / B&W
+   - Multi-page gallery
+   - PDF export
    ========================================================= */
 
-/* -------------------------
-   DOM Elements
-------------------------- */
+
+/* =========================================================
+   DOM
+   ========================================================= */
 
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
@@ -21,44 +33,79 @@ const filterSection = document.getElementById("filterSection");
 
 const cropImage = document.getElementById("cropImage");
 const flashEffect = document.getElementById("flashEffect");
-const cameraPlaceholder = document.getElementById("cameraPlaceholder");
+const cameraPlaceholder =
+  document.getElementById("cameraPlaceholder");
 
 const captureBtn = document.getElementById("captureBtn");
 const pdfBtn = document.getElementById("pdfBtn");
 
-const cancelCropBtn = document.getElementById("cancelCropBtn");
-const applyCropBtn = document.getElementById("applyCropBtn");
+const cancelCropBtn =
+  document.getElementById("cancelCropBtn");
 
-const backToCropBtn = document.getElementById("backToCropBtn");
-const saveFilterBtn = document.getElementById("saveFilterBtn");
+const applyCropBtn =
+  document.getElementById("applyCropBtn");
 
-const mainControls = document.getElementById("mainControls");
-const cropControls = document.getElementById("cropControls");
-const filterControls = document.getElementById("filterControls");
+const backToCropBtn =
+  document.getElementById("backToCropBtn");
 
-const gallery = document.getElementById("gallery");
-const pageCount = document.getElementById("pageCount");
+const saveFilterBtn =
+  document.getElementById("saveFilterBtn");
 
-const statusDiv = document.getElementById("status");
-const errorMessage = document.getElementById("errorMessage");
-const errorTitle = document.getElementById("errorTitle");
-const errorText = document.getElementById("errorText");
-const dismissErrorBtn = document.getElementById("dismissErrorBtn");
+const mainControls =
+  document.getElementById("mainControls");
 
-const filterBtns = document.querySelectorAll(".filter-btn");
+const cropControls =
+  document.getElementById("cropControls");
 
-/* PDF Modal */
+const filterControls =
+  document.getElementById("filterControls");
 
-const pdfNameModal = document.getElementById("pdfNameModal");
-const pdfNameInput = document.getElementById("pdfNameInput");
+const gallery =
+  document.getElementById("gallery");
 
-const cancelPdfBtn = document.getElementById("cancelPdfBtn");
-const confirmPdfBtn = document.getElementById("confirmPdfBtn");
-const closePdfModalBtn = document.getElementById("closePdfModalBtn");
+const pageCount =
+  document.getElementById("pageCount");
 
-/* -------------------------
-   App State
-------------------------- */
+const statusDiv =
+  document.getElementById("status");
+
+const errorMessage =
+  document.getElementById("errorMessage");
+
+const errorTitle =
+  document.getElementById("errorTitle");
+
+const errorText =
+  document.getElementById("errorText");
+
+const dismissErrorBtn =
+  document.getElementById("dismissErrorBtn");
+
+const filterBtns =
+  document.querySelectorAll(".filter-btn");
+
+
+/* PDF */
+
+const pdfNameModal =
+  document.getElementById("pdfNameModal");
+
+const pdfNameInput =
+  document.getElementById("pdfNameInput");
+
+const cancelPdfBtn =
+  document.getElementById("cancelPdfBtn");
+
+const confirmPdfBtn =
+  document.getElementById("confirmPdfBtn");
+
+const closePdfModalBtn =
+  document.getElementById("closePdfModalBtn");
+
+
+/* =========================================================
+   STATE
+   ========================================================= */
 
 let scannedImages = [];
 
@@ -68,13 +115,17 @@ let isCameraReady = false;
 let isOpenCvReady = false;
 
 let cropper = null;
+
 let originalCroppedMat = null;
 
 let currentFilter = "magic";
 
-/* -------------------------
-   Utility Functions
-------------------------- */
+let lastDetectedCorners = null;
+
+
+/* =========================================================
+   STATUS / ERROR
+   ========================================================= */
 
 function setStatus(type, message, autoHide = false) {
   if (!statusDiv) return;
@@ -83,63 +134,49 @@ function setStatus(type, message, autoHide = false) {
 
   if (type === "loading") {
     statusDiv.classList.add("status-loading");
-  } else if (type === "ready") {
+  }
+
+  if (type === "ready") {
     statusDiv.classList.add("status-ready");
-  } else if (type === "error") {
+  }
+
+  if (type === "error") {
     statusDiv.classList.add("status-error");
   }
 
   statusDiv.innerHTML = message;
 
-  statusDiv.classList.remove("status-hidden");
-
   if (autoHide) {
-    window.setTimeout(() => {
+    setTimeout(() => {
       statusDiv.classList.add("status-hidden");
     }, 3000);
+  } else {
+    statusDiv.classList.remove("status-hidden");
   }
 }
+
 
 function showError(title, message) {
   errorTitle.textContent = title;
   errorText.textContent = message;
-
   errorMessage.hidden = false;
 }
+
 
 function hideError() {
   errorMessage.hidden = true;
 }
 
-function setMainButtonsState(enabled) {
-  captureBtn.disabled = !enabled;
+
+function updateCaptureAvailability() {
+  captureBtn.disabled =
+    !(isCameraReady && isOpenCvReady);
 }
 
-function isValidCameraEnvironment() {
-  if (!navigator.mediaDevices) {
-    showError(
-      "Camera not supported",
-      "এই browser/device camera access support করে না।"
-    );
 
-    return false;
-  }
-
-  if (!navigator.mediaDevices.getUserMedia) {
-    showError(
-      "Camera unavailable",
-      "এই browser-এ camera access পাওয়া যাচ্ছে না।"
-    );
-
-    return false;
-  }
-
-  return true;
-}
-
-/* -------------------------
-   OpenCV
-------------------------- */
+/* =========================================================
+   OPENCV
+   ========================================================= */
 
 function onOpenCvReady() {
   try {
@@ -152,50 +189,67 @@ function onOpenCvReady() {
 
     setStatus(
       "ready",
-      '<i class="fas fa-check-circle"></i><span>AI Scanner Ready!</span>',
+      '<i class="fas fa-check-circle"></i>' +
+      "<span>Smart Scanner Ready</span>",
       true
     );
 
     updateCaptureAvailability();
+
   } catch (error) {
-    console.error("OpenCV initialization error:", error);
+    console.error(
+      "OpenCV initialization error:",
+      error
+    );
 
     onOpenCvError();
   }
 }
+
 
 function onOpenCvError() {
   isOpenCvReady = false;
 
   setStatus(
     "error",
-    '<i class="fas fa-triangle-exclamation"></i><span>Scanner Engine Failed</span>'
+    '<i class="fas fa-triangle-exclamation"></i>' +
+    "<span>Scanner Engine Failed</span>"
   );
 
   showError(
     "Scanner engine unavailable",
-    "AI scanner engine load করা যায়নি। Internet connection check করে page reload করুন।"
+    "OpenCV load করা যায়নি। Internet connection check করে page reload করুন।"
   );
 
   updateCaptureAvailability();
 }
 
-function updateCaptureAvailability() {
-  const ready = isCameraReady && isOpenCvReady;
 
-  setMainButtonsState(ready);
+/* =========================================================
+   CAMERA
+   ========================================================= */
+
+function isValidCameraEnvironment() {
+  if (
+    !navigator.mediaDevices ||
+    !navigator.mediaDevices.getUserMedia
+  ) {
+    showError(
+      "Camera not supported",
+      "এই browser/device camera access support করে না।"
+    );
+
+    return false;
+  }
+
+  return true;
 }
 
-/* -------------------------
-   Camera
-------------------------- */
 
 async function startCamera() {
   hideError();
 
   if (!isValidCameraEnvironment()) {
-    isCameraReady = false;
-    updateCaptureAvailability();
     return;
   }
 
@@ -205,27 +259,34 @@ async function startCamera() {
 
   setStatus(
     "loading",
-    '<i class="fas fa-spinner fa-spin"></i><span>Camera starting...</span>'
+    '<i class="fas fa-spinner fa-spin"></i>' +
+    "<span>Camera starting...</span>"
   );
 
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
+    cameraStream =
+      await navigator.mediaDevices.getUserMedia({
+        audio: false,
 
-      video: {
-        facingMode: {
-          ideal: "environment",
-        },
+        video: {
+          facingMode: {
+            ideal: "environment"
+          },
 
-        width: {
-          ideal: 1920,
-        },
+          width: {
+            ideal: 1920
+          },
 
-        height: {
-          ideal: 1080,
-        },
-      },
-    });
+          height: {
+            ideal: 1080
+          },
+
+          frameRate: {
+            ideal: 30,
+            max: 30
+          }
+        }
+      });
 
     video.srcObject = cameraStream;
 
@@ -237,44 +298,51 @@ async function startCamera() {
 
     setStatus(
       "ready",
-      '<i class="fas fa-camera"></i><span>Camera Ready</span>',
+      '<i class="fas fa-camera"></i>' +
+      "<span>Camera Ready</span>",
       true
     );
 
     updateCaptureAvailability();
+
   } catch (error) {
-    console.error("Camera error:", error);
+    console.error(
+      "Camera error:",
+      error
+    );
 
     isCameraReady = false;
 
-    updateCaptureAvailability();
-
     handleCameraError(error);
+
+    updateCaptureAvailability();
   }
 }
 
+
 function waitForVideoReady() {
   return new Promise((resolve, reject) => {
-    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+    if (
+      video.readyState >=
+      HTMLMediaElement.HAVE_METADATA
+    ) {
       resolve();
       return;
     }
 
-    const timeout = window.setTimeout(() => {
-      cleanup();
+    const timeout =
+      setTimeout(() => {
+        cleanup();
 
-      reject(
-        new Error("Camera preview timed out.")
-      );
-    }, 10000);
-
-    function handleLoadedMetadata() {
-      cleanup();
-      resolve();
-    }
+        reject(
+          new Error(
+            "Camera preview timeout."
+          )
+        );
+      }, 10000);
 
     function cleanup() {
-      window.clearTimeout(timeout);
+      clearTimeout(timeout);
 
       video.removeEventListener(
         "loadedmetadata",
@@ -282,64 +350,101 @@ function waitForVideoReady() {
       );
     }
 
+    function handleLoadedMetadata() {
+      cleanup();
+      resolve();
+    }
+
     video.addEventListener(
       "loadedmetadata",
       handleLoadedMetadata,
-      {
-        once: true,
-      }
+      { once: true }
     );
   });
 }
 
+
 function handleCameraError(error) {
   cameraPlaceholder.hidden = false;
 
-  let title = "Camera চালু করা যাচ্ছে না";
-  let message = "Camera permission এবং browser settings check করুন।";
+  let title =
+    "Camera চালু করা যাচ্ছে না";
 
-  if (error && error.name === "NotAllowedError") {
-    title = "Camera permission required";
+  let message =
+    "Camera permission check করুন।";
 
-    message =
-      "Camera permission denied হয়েছে। Browser settings থেকে camera permission Allow করে আবার চেষ্টা করুন.";
-  } else if (error && error.name === "NotFoundError") {
-    title = "Camera পাওয়া যায়নি";
-
-    message =
-      "এই device-এ কোনো compatible camera পাওয়া যায়নি.";
-  } else if (error && error.name === "NotReadableError") {
-    title = "Camera busy";
+  if (
+    error?.name ===
+    "NotAllowedError"
+  ) {
+    title =
+      "Camera permission required";
 
     message =
-      "অন্য কোনো app/browser camera ব্যবহার করছে। সেটি বন্ধ করে আবার চেষ্টা করুন.";
-  } else if (error && error.name === "SecurityError") {
-    title = "Secure connection required";
+      "Camera permission denied হয়েছে। Browser settings থেকে Camera permission Allow করুন।";
+  }
+
+  if (
+    error?.name ===
+    "NotFoundError"
+  ) {
+    title =
+      "Camera পাওয়া যায়নি";
 
     message =
-      "Camera access-এর জন্য HTTPS অথবা localhost ব্যবহার করুন.";
+      "কোনো compatible camera পাওয়া যায়নি।";
+  }
+
+  if (
+    error?.name ===
+    "NotReadableError"
+  ) {
+    title =
+      "Camera busy";
+
+    message =
+      "অন্য কোনো application camera ব্যবহার করছে। সেটি বন্ধ করে আবার চেষ্টা করুন।";
+  }
+
+  if (
+    error?.name ===
+    "SecurityError"
+  ) {
+    title =
+      "Secure connection required";
+
+    message =
+      "Camera ব্যবহার করার জন্য HTTPS অথবা localhost ব্যবহার করুন।";
   }
 
   setStatus(
     "error",
-    '<i class="fas fa-camera-slash"></i><span>Camera Error</span>'
+    '<i class="fas fa-camera-slash"></i>' +
+    "<span>Camera Error</span>"
   );
 
-  showError(title, message);
+  showError(
+    title,
+    message
+  );
 }
 
-function stopCamera() {
-  if (!cameraStream) {
-    return;
-  }
 
-  cameraStream.getTracks().forEach((track) => {
-    try {
-      track.stop();
-    } catch (error) {
-      console.warn("Could not stop camera track:", error);
-    }
-  });
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream
+      .getTracks()
+      .forEach((track) => {
+        try {
+          track.stop();
+        } catch (error) {
+          console.warn(
+            "Camera track cleanup failed:",
+            error
+          );
+        }
+      });
+  }
 
   cameraStream = null;
 
@@ -350,9 +455,10 @@ function stopCamera() {
   updateCaptureAvailability();
 }
 
-/* -------------------------
-   Capture
-------------------------- */
+
+/* =========================================================
+   CAPTURE
+   ========================================================= */
 
 async function captureImage() {
   hideError();
@@ -369,7 +475,7 @@ async function captureImage() {
   if (!isOpenCvReady) {
     showError(
       "Scanner engine not ready",
-      "Scanner engine এখনও load হচ্ছে।"
+      "Smart scanner engine এখনও প্রস্তুত হচ্ছে।"
     );
 
     return;
@@ -381,7 +487,7 @@ async function captureImage() {
   ) {
     showError(
       "Camera frame unavailable",
-      "Camera preview থেকে image পাওয়া যায়নি। আবার চেষ্টা করুন।"
+      "Camera frame পাওয়া যায়নি। আবার চেষ্টা করুন।"
     );
 
     return;
@@ -390,18 +496,13 @@ async function captureImage() {
   try {
     captureBtn.disabled = true;
 
-    flashEffect.classList.remove("flash-active");
+    triggerFlash();
 
-    /*
-      Force browser to restart animation
-      so repeated captures always flash.
-    */
-    void flashEffect.offsetWidth;
+    canvas.width =
+      video.videoWidth;
 
-    flashEffect.classList.add("flash-active");
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.height =
+      video.videoHeight;
 
     ctx.drawImage(
       video,
@@ -411,109 +512,995 @@ async function captureImage() {
       canvas.height
     );
 
-    const imageDataUrl = canvas.toDataURL(
-      "image/jpeg",
-      0.92
-    );
+    const capturedMat =
+      cv.imread(canvas);
 
-    if (!imageDataUrl || imageDataUrl === "data:,") {
+    if (
+      !capturedMat ||
+      capturedMat.empty()
+    ) {
       throw new Error(
-        "Could not create captured image."
+        "Could not read camera image."
       );
     }
 
-    cropImage.src = imageDataUrl;
+    setStatus(
+      "loading",
+      '<i class="fas fa-spinner fa-spin"></i>' +
+      "<span>Document detecting...</span>"
+    );
 
-    await waitForImageLoad(cropImage);
+    /*
+      Give the browser a small amount of time
+      before heavy OpenCV processing.
+    */
+    await nextFrame();
 
-    showCropScreen();
+    const detection =
+      detectDocument(capturedMat);
+
+    if (detection) {
+      lastDetectedCorners =
+        detection.corners;
+
+      setStatus(
+        "ready",
+        '<i class="fas fa-border-all"></i>' +
+        "<span>Document detected</span>",
+        true
+      );
+
+      const correctedMat =
+        perspectiveCorrect(
+          capturedMat,
+          detection.corners
+        );
+
+      capturedMat.delete();
+
+      if (
+        !correctedMat ||
+        correctedMat.empty()
+      ) {
+        throw new Error(
+          "Perspective correction failed."
+        );
+      }
+
+      showCorrectedDocument(
+        correctedMat
+      );
+
+      correctedMat.delete();
+
+    } else {
+      /*
+        Fallback:
+        If automatic detection fails,
+        open the normal manual crop editor.
+      */
+
+      setStatus(
+        "ready",
+        '<i class="fas fa-crop-simple"></i>' +
+        "<span>Manual crop mode</span>",
+        true
+      );
+
+      const fallbackUrl =
+        canvas.toDataURL(
+          "image/jpeg",
+          0.92
+        );
+
+      capturedMat.delete();
+
+      await openManualCrop(
+        fallbackUrl
+      );
+    }
+
   } catch (error) {
-    console.error("Capture error:", error);
+    console.error(
+      "Capture processing error:",
+      error
+    );
 
     showError(
-      "Capture failed",
-      "ছবি capture করা যায়নি। আবার চেষ্টা করুন।"
+      "Scan failed",
+      "Document scan করা যায়নি। আবার চেষ্টা করুন।"
     );
+
   } finally {
     updateCaptureAvailability();
   }
 }
 
-function waitForImageLoad(image) {
-  return new Promise((resolve, reject) => {
-    if (image.complete && image.naturalWidth > 0) {
-      resolve();
-      return;
-    }
 
-    const timeout = window.setTimeout(() => {
-      cleanup();
+function triggerFlash() {
+  flashEffect.classList.remove(
+    "flash-active"
+  );
 
-      reject(
-        new Error("Captured image failed to load.")
-      );
-    }, 5000);
+  void flashEffect.offsetWidth;
 
-    function handleLoad() {
-      cleanup();
-      resolve();
-    }
+  flashEffect.classList.add(
+    "flash-active"
+  );
+}
 
-    function handleError() {
-      cleanup();
 
-      reject(
-        new Error("Captured image failed to load.")
-      );
-    }
-
-    function cleanup() {
-      window.clearTimeout(timeout);
-
-      image.removeEventListener(
-        "load",
-        handleLoad
-      );
-
-      image.removeEventListener(
-        "error",
-        handleError
-      );
-    }
-
-    image.addEventListener(
-      "load",
-      handleLoad,
-      { once: true }
-    );
-
-    image.addEventListener(
-      "error",
-      handleError,
-      { once: true }
-    );
+function nextFrame() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
   });
 }
 
-/* -------------------------
-   Crop
-------------------------- */
 
-function showCropScreen() {
+/* =========================================================
+   DOCUMENT DETECTION
+   ========================================================= */
+
+function detectDocument(src) {
+  let gray = null;
+  let blurred = null;
+  let edges = null;
+  let contours = null;
+  let hierarchy = null;
+
+  try {
+    /*
+      Resize large images before detection.
+      This makes mobile processing much faster.
+    */
+
+    const working =
+      resizeForDetection(
+        src,
+        1200
+      );
+
+    gray =
+      new cv.Mat();
+
+    blurred =
+      new cv.Mat();
+
+    edges =
+      new cv.Mat();
+
+    contours =
+      new cv.MatVector();
+
+    hierarchy =
+      new cv.Mat();
+
+    cv.cvtColor(
+      working,
+      gray,
+      cv.COLOR_RGBA2GRAY
+    );
+
+    cv.GaussianBlur(
+      gray,
+      blurred,
+      new cv.Size(5, 5),
+      0
+    );
+
+    cv.Canny(
+      blurred,
+      edges,
+      50,
+      150
+    );
+
+    /*
+      Slightly connect document edges.
+    */
+
+    const kernel =
+      cv.Mat.ones(
+        5,
+        5,
+        cv.CV_8U
+      );
+
+    cv.morphologyEx(
+      edges,
+      edges,
+      cv.MORPH_CLOSE,
+      kernel
+    );
+
+    kernel.delete();
+
+    cv.findContours(
+      edges,
+      contours,
+      hierarchy,
+      cv.RETR_LIST,
+      cv.CHAIN_APPROX_SIMPLE
+    );
+
+    const imageArea =
+      working.rows *
+      working.cols;
+
+    let bestCandidate = null;
+
+    /*
+      Inspect larger contours first.
+    */
+
+    const candidates = [];
+
+    for (
+      let i = 0;
+      i < contours.size();
+      i++
+    ) {
+      const contour =
+        contours.get(i);
+
+      const area =
+        Math.abs(
+          cv.contourArea(contour)
+        );
+
+      if (
+        area <
+        imageArea * 0.08
+      ) {
+        contour.delete();
+        continue;
+      }
+
+      candidates.push({
+        contour,
+        area
+      });
+    }
+
+    candidates.sort(
+      (a, b) =>
+        b.area - a.area
+    );
+
+    /*
+      Check only the largest candidates.
+    */
+
+    const maxCandidates =
+      Math.min(
+        candidates.length,
+        25
+      );
+
+    for (
+      let i = 0;
+      i < maxCandidates;
+      i++
+    ) {
+      const contour =
+        candidates[i].contour;
+
+      const perimeter =
+        cv.arcLength(
+          contour,
+          true
+        );
+
+      const approx =
+        new cv.Mat();
+
+      cv.approxPolyDP(
+        contour,
+        approx,
+        0.02 * perimeter,
+        true
+      );
+
+      /*
+        A document should generally
+        produce a quadrilateral.
+      */
+
+      if (
+        approx.rows === 4 &&
+        cv.isContourConvex(approx)
+      ) {
+        const points =
+          matToPoints(approx);
+
+        const ordered =
+          orderCorners(points);
+
+        const area =
+          polygonArea(ordered);
+
+        const rectangularity =
+          calculateRectangularity(
+            ordered
+          );
+
+        const score =
+          scoreDocumentCandidate(
+            area,
+            imageArea,
+            rectangularity
+          );
+
+        if (
+          !bestCandidate ||
+          score >
+          bestCandidate.score
+        ) {
+          bestCandidate = {
+            corners:
+              scalePointsToOriginal(
+                ordered,
+                src.cols,
+                src.rows,
+                working.cols,
+                working.rows
+              ),
+
+            score
+          };
+        }
+      }
+
+      approx.delete();
+    }
+
+    candidates.forEach(
+      (item) => {
+        try {
+          item.contour.delete();
+        } catch (_) {}
+      }
+    );
+
+    working.delete();
+
+    return bestCandidate;
+
+  } catch (error) {
+    console.error(
+      "Document detection error:",
+      error
+    );
+
+    return null;
+
+  } finally {
+    if (gray) gray.delete();
+    if (blurred) blurred.delete();
+    if (edges) edges.delete();
+    if (contours) contours.delete();
+    if (hierarchy) hierarchy.delete();
+  }
+}
+
+
+/* =========================================================
+   RESIZE FOR DETECTION
+   ========================================================= */
+
+function resizeForDetection(
+  src,
+  maxDimension
+) {
+  const scale =
+    Math.min(
+      1,
+      maxDimension /
+        Math.max(
+          src.cols,
+          src.rows
+        )
+    );
+
+  if (scale >= 1) {
+    return src.clone();
+  }
+
+  const width =
+    Math.max(
+      1,
+      Math.round(
+        src.cols * scale
+      )
+    );
+
+  const height =
+    Math.max(
+      1,
+      Math.round(
+        src.rows * scale
+      )
+    );
+
+  const dst =
+    new cv.Mat();
+
+  cv.resize(
+    src,
+    dst,
+    new cv.Size(
+      width,
+      height
+    ),
+    0,
+    0,
+    cv.INTER_AREA
+  );
+
+  return dst;
+}
+
+
+/* =========================================================
+   POINT HELPERS
+   ========================================================= */
+
+function matToPoints(mat) {
+  const points = [];
+
+  for (
+    let i = 0;
+    i < mat.rows;
+    i++
+  ) {
+    let x = 0;
+    let y = 0;
+
+    /*
+      OpenCV.js contour matrix
+      usually stores points as:
+      [x, y]
+    */
+
+    try {
+      x =
+        mat.intAt(
+          i,
+          0
+        );
+
+      y =
+        mat.intAt(
+          i,
+          1
+        );
+    } catch (_) {
+      /*
+        Alternative representation.
+      */
+
+      const data =
+        mat.data32S;
+
+      x =
+        data[i * 2];
+
+      y =
+        data[i * 2 + 1];
+    }
+
+    points.push({
+      x,
+      y
+    });
+  }
+
+  return points;
+}
+
+
+function orderCorners(points) {
+  if (points.length !== 4) {
+    return null;
+  }
+
+  const sums =
+    points.map(
+      (p) => p.x + p.y
+    );
+
+  const diffs =
+    points.map(
+      (p) => p.x - p.y
+    );
+
+  const topLeftIndex =
+    indexOfMin(sums);
+
+  const bottomRightIndex =
+    indexOfMax(sums);
+
+  const topRightIndex =
+    indexOfMax(diffs);
+
+  const bottomLeftIndex =
+    indexOfMin(diffs);
+
+  return [
+    points[topLeftIndex],
+    points[topRightIndex],
+    points[bottomRightIndex],
+    points[bottomLeftIndex]
+  ];
+}
+
+
+function indexOfMin(array) {
+  let index = 0;
+
+  for (
+    let i = 1;
+    i < array.length;
+    i++
+  ) {
+    if (
+      array[i] <
+      array[index]
+    ) {
+      index = i;
+    }
+  }
+
+  return index;
+}
+
+
+function indexOfMax(array) {
+  let index = 0;
+
+  for (
+    let i = 1;
+    i < array.length;
+    i++
+  ) {
+    if (
+      array[i] >
+      array[index]
+    ) {
+      index = i;
+    }
+  }
+
+  return index;
+}
+
+
+/* =========================================================
+   GEOMETRY
+   ========================================================= */
+
+function polygonArea(points) {
+  if (!points || points.length !== 4) {
+    return 0;
+  }
+
+  let area = 0;
+
+  for (
+    let i = 0;
+    i < points.length;
+    i++
+  ) {
+    const current =
+      points[i];
+
+    const next =
+      points[
+        (i + 1) %
+          points.length
+      ];
+
+    area +=
+      current.x * next.y -
+      next.x * current.y;
+  }
+
+  return Math.abs(area) / 2;
+}
+
+
+function distance(a, b) {
+  return Math.hypot(
+    a.x - b.x,
+    a.y - b.y
+  );
+}
+
+
+function calculateRectangularity(
+  points
+) {
+  if (!points || points.length !== 4) {
+    return 0;
+  }
+
+  const top =
+    distance(
+      points[0],
+      points[1]
+    );
+
+  const right =
+    distance(
+      points[1],
+      points[2]
+    );
+
+  const bottom =
+    distance(
+      points[2],
+      points[3]
+    );
+
+  const left =
+    distance(
+      points[3],
+      points[0]
+    );
+
+  const width =
+    (top + bottom) / 2;
+
+  const height =
+    (left + right) / 2;
+
+  if (
+    width <= 0 ||
+    height <= 0
+  ) {
+    return 0;
+  }
+
+  /*
+    Compare opposite sides.
+  */
+
+  const widthRatio =
+    Math.min(
+      top,
+      bottom
+    ) /
+    Math.max(
+      top,
+      bottom
+    );
+
+  const heightRatio =
+    Math.min(
+      left,
+      right
+    ) /
+    Math.max(
+      left,
+      right
+    );
+
+  return (
+    widthRatio *
+    heightRatio
+  );
+}
+
+
+function scoreDocumentCandidate(
+  area,
+  imageArea,
+  rectangularity
+) {
+  const areaRatio =
+    area / imageArea;
+
+  /*
+    Prefer large documents but
+    avoid selecting almost the
+    entire image border.
+  */
+
+  let areaScore =
+    Math.min(
+      areaRatio / 0.65,
+      1
+    );
+
+  if (
+    areaRatio > 0.95
+  ) {
+    areaScore *= 0.5;
+  }
+
+  return (
+    areaScore * 0.7 +
+    rectangularity * 0.3
+  );
+}
+
+
+function scalePointsToOriginal(
+  points,
+  originalWidth,
+  originalHeight,
+  workingWidth,
+  workingHeight
+) {
+  const scaleX =
+    originalWidth /
+    workingWidth;
+
+  const scaleY =
+    originalHeight /
+    workingHeight;
+
+  return points.map(
+    (point) => ({
+      x:
+        point.x *
+        scaleX,
+
+      y:
+        point.y *
+        scaleY
+    })
+  );
+}
+
+
+/* =========================================================
+   PERSPECTIVE CORRECTION
+   ========================================================= */
+
+function perspectiveCorrect(
+  src,
+  corners
+) {
+  if (
+    !corners ||
+    corners.length !== 4
+  ) {
+    throw new Error(
+      "Invalid document corners."
+    );
+  }
+
+  const tl = corners[0];
+  const tr = corners[1];
+  const br = corners[2];
+  const bl = corners[3];
+
+  const topWidth =
+    distance(
+      tl,
+      tr
+    );
+
+  const bottomWidth =
+    distance(
+      bl,
+      br
+    );
+
+  const leftHeight =
+    distance(
+      tl,
+      bl
+    );
+
+  const rightHeight =
+    distance(
+      tr,
+      br
+    );
+
+  const maxWidth =
+    Math.max(
+      topWidth,
+      bottomWidth
+    );
+
+  const maxHeight =
+    Math.max(
+      leftHeight,
+      rightHeight
+    );
+
+  /*
+    Prevent extremely large output.
+  */
+
+  const MAX_OUTPUT =
+    2200;
+
+  let outputWidth =
+    Math.round(
+      maxWidth
+    );
+
+  let outputHeight =
+    Math.round(
+      maxHeight
+    );
+
+  const scale =
+    Math.min(
+      1,
+      MAX_OUTPUT /
+        Math.max(
+          outputWidth,
+          outputHeight
+        )
+    );
+
+  outputWidth =
+    Math.max(
+      1,
+      Math.round(
+        outputWidth * scale
+      )
+    );
+
+  outputHeight =
+    Math.max(
+      1,
+      Math.round(
+        outputHeight * scale
+      )
+    );
+
+  const srcTri =
+    cv.matFromArray(
+      4,
+      1,
+      cv.CV_32FC2,
+      [
+        tl.x,
+        tl.y,
+
+        tr.x,
+        tr.y,
+
+        br.x,
+        br.y,
+
+        bl.x,
+        bl.y
+      ]
+    );
+
+  const dstTri =
+    cv.matFromArray(
+      4,
+      1,
+      cv.CV_32FC2,
+      [
+        0,
+        0,
+
+        outputWidth,
+        0,
+
+        outputWidth,
+        outputHeight,
+
+        0,
+        outputHeight
+      ]
+    );
+
+  const matrix =
+    cv.getPerspectiveTransform(
+      srcTri,
+      dstTri
+    );
+
+  const dst =
+    new cv.Mat();
+
+  cv.warpPerspective(
+    src,
+    dst,
+    matrix,
+    new cv.Size(
+      outputWidth,
+      outputHeight
+    ),
+    cv.INTER_LINEAR,
+    cv.BORDER_CONSTANT,
+    new cv.Scalar(
+      255,
+      255,
+      255,
+      255
+    )
+  );
+
+  srcTri.delete();
+  dstTri.delete();
+  matrix.delete();
+
+  return dst;
+}
+
+
+/* =========================================================
+   SHOW CORRECTED DOCUMENT
+   ========================================================= */
+
+function showCorrectedDocument(
+  mat
+) {
+  const tempCanvas =
+    document.createElement(
+      "canvas"
+    );
+
+  cv.imshow(
+    tempCanvas,
+    mat
+  );
+
+  const dataUrl =
+    tempCanvas.toDataURL(
+      "image/jpeg",
+      0.94
+    );
+
+  openManualCrop(
+    dataUrl,
+    true
+  );
+}
+
+
+/* =========================================================
+   MANUAL CROP
+   ========================================================= */
+
+async function openManualCrop(
+  imageUrl,
+  autoDetected = false
+) {
+  cropImage.src =
+    imageUrl;
+
+  await waitForImageLoad(
+    cropImage
+  );
+
   cameraSection.hidden = true;
+
   mainControls.hidden = true;
+
+  filterSection.hidden = true;
+  filterControls.hidden = true;
 
   cropSection.hidden = false;
   cropControls.hidden = false;
 
-  initializeCropper();
+  initializeCropper(
+    autoDetected
+  );
 }
 
-function initializeCropper() {
+
+function initializeCropper(
+  autoDetected = false
+) {
   destroyCropper();
 
   if (
-    typeof Cropper === "undefined"
+    typeof Cropper ===
+    "undefined"
   ) {
     showError(
       "Cropper unavailable",
@@ -523,39 +1510,44 @@ function initializeCropper() {
     return;
   }
 
-  cropper = new Cropper(
-    cropImage,
-    {
-      viewMode: 1,
+  cropper =
+    new Cropper(
+      cropImage,
+      {
+        viewMode: 1,
 
-      autoCropArea: 0.9,
+        autoCropArea:
+          autoDetected
+            ? 0.98
+            : 0.9,
 
-      background: false,
+        background: false,
 
-      responsive: true,
+        responsive: true,
 
-      restore: false,
+        restore: false,
 
-      guides: true,
+        guides: true,
 
-      center: true,
+        center: true,
 
-      highlight: true,
+        highlight: true,
 
-      movable: true,
+        movable: true,
 
-      zoomable: true,
+        zoomable: true,
 
-      rotatable: false,
+        rotatable: false,
 
-      scalable: false,
+        scalable: false,
 
-      cropBoxMovable: true,
+        cropBoxMovable: true,
 
-      cropBoxResizable: true,
-    }
-  );
+        cropBoxResizable: true
+      }
+    );
 }
+
 
 function destroyCropper() {
   if (!cropper) {
@@ -566,7 +1558,7 @@ function destroyCropper() {
     cropper.destroy();
   } catch (error) {
     console.warn(
-      "Cropper destroy error:",
+      "Cropper cleanup failed:",
       error
     );
   }
@@ -574,24 +1566,10 @@ function destroyCropper() {
   cropper = null;
 }
 
-function cancelCrop() {
-  destroyCropper();
 
-  cropImage.removeAttribute("src");
-
-  cropSection.hidden = true;
-  cropControls.hidden = true;
-
-  filterSection.hidden = true;
-  filterControls.hidden = true;
-
-  cameraSection.hidden = false;
-  mainControls.hidden = false;
-
-  hideError();
-
-  updateCaptureAvailability();
-}
+/* =========================================================
+   APPLY MANUAL CROP
+   ========================================================= */
 
 function applyCrop() {
   hideError();
@@ -599,20 +1577,26 @@ function applyCrop() {
   if (!cropper) {
     showError(
       "Crop editor unavailable",
-      "Crop editor পাওয়া যাচ্ছে না। আবার capture করুন।"
+      "Crop editor পাওয়া যাচ্ছে না।"
     );
 
     return;
   }
 
   try {
-    applyCropBtn.disabled = true;
+    applyCropBtn.disabled =
+      true;
 
     const croppedCanvas =
       cropper.getCroppedCanvas({
-        imageSmoothingEnabled: true,
-        imageSmoothingQuality: "high",
-        fillColor: "#ffffff",
+        imageSmoothingEnabled:
+          true,
+
+        imageSmoothingQuality:
+          "high",
+
+        fillColor:
+          "#ffffff"
       });
 
     if (
@@ -621,71 +1605,93 @@ function applyCrop() {
       !croppedCanvas.height
     ) {
       throw new Error(
-        "Invalid cropped canvas."
+        "Invalid crop canvas."
       );
     }
 
-    if (originalCroppedMat) {
-      originalCroppedMat.delete();
-
-      originalCroppedMat = null;
-    }
+    cleanupOriginalMat();
 
     originalCroppedMat =
-      cv.imread(croppedCanvas);
+      cv.imread(
+        croppedCanvas
+      );
 
     if (
-      !originalCroppedMat ||
       originalCroppedMat.empty()
     ) {
       throw new Error(
-        "OpenCV could not read cropped image."
+        "OpenCV image read failed."
       );
     }
 
     destroyCropper();
 
-    cropSection.hidden = true;
-    cropControls.hidden = true;
+    cropSection.hidden =
+      true;
 
-    filterSection.hidden = false;
-    filterControls.hidden = false;
+    cropControls.hidden =
+      true;
 
-    currentFilter = "magic";
+    filterSection.hidden =
+      false;
 
-    setActiveFilterBtn("magic");
+    filterControls.hidden =
+      false;
 
-    applyFilter("magic");
+    currentFilter =
+      "magic";
+
+    setActiveFilterBtn(
+      "magic"
+    );
+
+    applyFilter(
+      "magic"
+    );
+
   } catch (error) {
     console.error(
-      "Crop processing error:",
+      "Crop error:",
       error
     );
 
     showError(
       "Crop processing failed",
-      "Document processing করা যায়নি। আবার চেষ্টা করুন।"
+      "Document crop করা যায়নি। আবার চেষ্টা করুন।"
     );
+
   } finally {
-    applyCropBtn.disabled = false;
+    applyCropBtn.disabled =
+      false;
   }
 }
 
-/* -------------------------
-   Filters
-------------------------- */
 
-function setActiveFilterBtn(type) {
-  filterBtns.forEach((btn) => {
-    btn.classList.toggle(
-      "active",
-      btn.dataset.filter === type
-    );
-  });
+/* =========================================================
+   FILTERS
+   ========================================================= */
+
+function setActiveFilterBtn(
+  type
+) {
+  filterBtns.forEach(
+    (btn) => {
+      btn.classList.toggle(
+        "active",
+        btn.dataset.filter ===
+          type
+      );
+    }
+  );
 }
 
-function applyFilter(type) {
-  if (!originalCroppedMat) {
+
+function applyFilter(
+  type
+) {
+  if (
+    !originalCroppedMat
+  ) {
     showError(
       "Image unavailable",
       "Filter করার জন্য image পাওয়া যাচ্ছে না।"
@@ -694,66 +1700,55 @@ function applyFilter(type) {
     return;
   }
 
-  if (!isOpenCvReady) {
-    showError(
-      "Scanner engine unavailable",
-      "OpenCV scanner engine এখনও ready নয়।"
-    );
-
-    return;
-  }
-
   let dst = null;
 
   try {
-    currentFilter = type;
+    currentFilter =
+      type;
 
-    dst = new cv.Mat();
+    dst =
+      new cv.Mat();
 
-    if (type === "original") {
-      originalCroppedMat.copyTo(dst);
-    } else if (type === "magic") {
-      /*
-        Moderate enhancement.
-        Keeps the document natural while
-        improving brightness and contrast.
-      */
-      originalCroppedMat.convertTo(
-        dst,
-        -1,
-        1.25,
-        20
+    if (
+      type ===
+      "original"
+    ) {
+      originalCroppedMat.copyTo(
+        dst
       );
-    } else if (type === "bw") {
-      const gray = new cv.Mat();
+    }
 
-      try {
-        cv.cvtColor(
-          originalCroppedMat,
-          gray,
-          cv.COLOR_RGBA2GRAY
-        );
+    else if (
+      type ===
+      "magic"
+    ) {
+      applyMagicColor(
+        originalCroppedMat,
+        dst
+      );
+    }
 
-        cv.adaptiveThreshold(
-          gray,
-          dst,
-          255,
-          cv.ADAPTIVE_THRESH_GAUSSIAN_C,
-          cv.THRESH_BINARY,
-          11,
-          2
-        );
-      } finally {
-        gray.delete();
-      }
-    } else {
-      originalCroppedMat.copyTo(dst);
+    else if (
+      type ===
+      "bw"
+    ) {
+      applyBlackWhite(
+        originalCroppedMat,
+        dst
+      );
+    }
+
+    else {
+      originalCroppedMat.copyTo(
+        dst
+      );
     }
 
     cv.imshow(
       filterCanvas,
       dst
     );
+
   } catch (error) {
     console.error(
       "Filter error:",
@@ -762,8 +1757,9 @@ function applyFilter(type) {
 
     showError(
       "Filter failed",
-      "এই filter apply করা যায়নি। অন্য filter চেষ্টা করুন।"
+      "Filter apply করা যায়নি।"
     );
+
   } finally {
     if (dst) {
       dst.delete();
@@ -771,179 +1767,409 @@ function applyFilter(type) {
   }
 }
 
-/* -------------------------
-   Back to Crop
-------------------------- */
+
+/* =========================================================
+   MAGIC COLOR
+   ========================================================= */
+
+function applyMagicColor(
+  src,
+  dst
+) {
+  /*
+    Mild contrast + brightness
+    enhancement.
+
+    This intentionally avoids
+    aggressive processing so that
+    photos remain natural.
+  */
+
+  const lab =
+    new cv.Mat();
+
+  const channels =
+    new cv.MatVector();
+
+  const clahe =
+    new cv.CLAHE(
+      2.0,
+      new cv.Size(
+        8,
+        8
+      )
+    );
+
+  try {
+    cv.cvtColor(
+      src,
+      lab,
+      cv.COLOR_RGBA2LAB
+    );
+
+    cv.split(
+      lab,
+      channels
+    );
+
+    const light =
+      channels.get(0);
+
+    clahe.apply(
+      light,
+      light
+    );
+
+    cv.merge(
+      channels,
+      lab
+    );
+
+    cv.cvtColor(
+      lab,
+      dst,
+      cv.COLOR_LAB2RGBA
+    );
+
+  } finally {
+    lab.delete();
+    channels.delete();
+    clahe.delete();
+  }
+}
+
+
+/* =========================================================
+   BLACK & WHITE
+   ========================================================= */
+
+function applyBlackWhite(
+  src,
+  dst
+) {
+  const gray =
+    new cv.Mat();
+
+  const blurred =
+    new cv.Mat();
+
+  try {
+    cv.cvtColor(
+      src,
+      gray,
+      cv.COLOR_RGBA2GRAY
+    );
+
+    cv.GaussianBlur(
+      gray,
+      blurred,
+      new cv.Size(
+        3,
+        3
+      ),
+      0
+    );
+
+    cv.adaptiveThreshold(
+      blurred,
+      dst,
+      255,
+      cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+      cv.THRESH_BINARY,
+      21,
+      8
+    );
+
+  } finally {
+    gray.delete();
+    blurred.delete();
+  }
+}
+
+
+/* =========================================================
+   BACK TO CROP
+   ========================================================= */
 
 function backToCrop() {
-  filterSection.hidden = true;
-  filterControls.hidden = true;
+  filterSection.hidden =
+    true;
 
-  cropSection.hidden = false;
-  cropControls.hidden = false;
+  filterControls.hidden =
+    true;
 
-  if (cropImage.src) {
+  cropSection.hidden =
+    false;
+
+  cropControls.hidden =
+    false;
+
+  if (
+    cropImage.src
+  ) {
     initializeCropper();
   }
 }
 
-/* -------------------------
-   Save Scanned Page
-------------------------- */
+
+/* =========================================================
+   CANCEL CROP
+   ========================================================= */
+
+function cancelCrop() {
+  destroyCropper();
+
+  cleanupOriginalMat();
+
+  cropImage.removeAttribute(
+    "src"
+  );
+
+  cropSection.hidden =
+    true;
+
+  cropControls.hidden =
+    true;
+
+  filterSection.hidden =
+    true;
+
+  filterControls.hidden =
+    true;
+
+  cameraSection.hidden =
+    false;
+
+  mainControls.hidden =
+    false;
+
+  hideError();
+
+  updateCaptureAvailability();
+}
+
+
+/* =========================================================
+   SAVE PAGE
+   ========================================================= */
 
 function saveCurrentScan() {
   hideError();
 
-  if (!filterCanvas.width || !filterCanvas.height) {
+  if (
+    !filterCanvas.width ||
+    !filterCanvas.height
+  ) {
     showError(
       "Nothing to save",
-      "Save করার মতো কোনো scanned image নেই।"
+      "Scanned image পাওয়া যাচ্ছে না।"
     );
 
     return;
   }
 
   try {
-    saveFilterBtn.disabled = true;
+    saveFilterBtn.disabled =
+      true;
 
-    const imgDataUrl =
+    const imageData =
       filterCanvas.toDataURL(
         "image/jpeg",
-        0.9
+        0.92
       );
 
     if (
-      !imgDataUrl ||
-      imgDataUrl === "data:,"
+      !imageData ||
+      imageData ===
+        "data:,"
     ) {
       throw new Error(
-        "Could not create scan image."
+        "Invalid image data."
       );
     }
 
-    scannedImages.push(imgDataUrl);
+    scannedImages.push(
+      imageData
+    );
 
-    updateGallery(imgDataUrl);
+    updateGallery(
+      imageData
+    );
 
-    cleanupCurrentEditingState();
+    cleanupEditing();
 
-    cameraSection.hidden = false;
-    mainControls.hidden = false;
+    cameraSection.hidden =
+      false;
+
+    mainControls.hidden =
+      false;
 
     setStatus(
       "ready",
-      `<i class="fas fa-check-circle"></i><span>Page ${scannedImages.length} saved</span>`,
+      `<i class="fas fa-check-circle"></i>` +
+      `<span>Page ${scannedImages.length} saved</span>`,
       true
     );
+
   } catch (error) {
     console.error(
-      "Save scan error:",
+      "Save error:",
       error
     );
 
     showError(
       "Save failed",
-      "Scanned page save করা যায়নি। আবার চেষ্টা করুন।"
+      "Scanned page save করা যায়নি।"
     );
+
   } finally {
-    saveFilterBtn.disabled = false;
+    saveFilterBtn.disabled =
+      false;
 
     updateCaptureAvailability();
   }
 }
 
-function cleanupCurrentEditingState() {
-  filterSection.hidden = true;
-  filterControls.hidden = true;
 
-  cropSection.hidden = true;
-  cropControls.hidden = true;
+function cleanupEditing() {
+  filterSection.hidden =
+    true;
+
+  filterControls.hidden =
+    true;
+
+  cropSection.hidden =
+    true;
+
+  cropControls.hidden =
+    true;
 
   destroyCropper();
 
-  if (originalCroppedMat) {
-    try {
-      originalCroppedMat.delete();
-    } catch (error) {
-      console.warn(
-        "OpenCV Mat cleanup error:",
-        error
-      );
-    }
+  cleanupOriginalMat();
 
-    originalCroppedMat = null;
-  }
+  cropImage.removeAttribute(
+    "src"
+  );
 
-  cropImage.removeAttribute("src");
+  filterCanvas.width =
+    1;
 
-  filterCanvas.width = 1;
-  filterCanvas.height = 1;
+  filterCanvas.height =
+    1;
 }
 
-/* -------------------------
-   Gallery
-------------------------- */
 
-function updateGallery(imgSrc) {
-  const wrapper =
-    document.createElement("div");
+function cleanupOriginalMat() {
+  if (
+    originalCroppedMat
+  ) {
+    try {
+      originalCroppedMat.delete();
+    } catch (_) {}
 
-  wrapper.className =
-    "gallery-item";
+    originalCroppedMat =
+      null;
+  }
+}
 
+
+/* =========================================================
+   GALLERY
+   ========================================================= */
+
+function updateGallery(
+  imageSrc
+) {
   const img =
-    document.createElement("img");
+    document.createElement(
+      "img"
+    );
 
-  img.src = imgSrc;
+  img.src =
+    imageSrc;
 
   img.alt =
     `Scanned page ${scannedImages.length}`;
 
-  gallery.appendChild(img);
+  gallery.appendChild(
+    img
+  );
 
   pageCount.innerHTML =
-    `<i class="fas fa-copy"></i> Pages: ${scannedImages.length}`;
+    `<i class="fas fa-copy"></i>` +
+    ` Pages: ${scannedImages.length}`;
 
-  pdfBtn.hidden = false;
+  pdfBtn.hidden =
+    false;
 
   gallery.scrollLeft =
     gallery.scrollWidth;
 }
 
-/* -------------------------
+
+/* =========================================================
    PDF
-------------------------- */
+   ========================================================= */
 
 function openPdfModal() {
-  if (scannedImages.length === 0) {
+  if (
+    scannedImages.length ===
+    0
+  ) {
     return;
   }
 
-  pdfNameModal.hidden = false;
+  pdfNameModal.hidden =
+    false;
 
-  window.setTimeout(() => {
+  setTimeout(() => {
     pdfNameInput.focus();
     pdfNameInput.select();
   }, 50);
 }
 
+
 function closePdfModal() {
-  pdfNameModal.hidden = true;
+  pdfNameModal.hidden =
+    true;
 }
 
-function sanitizeFileName(name) {
+
+function sanitizeFileName(
+  name
+) {
   return name
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
-    .replace(/\s+/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^[_\s]+|[_\s]+$/g, "")
-    .slice(0, 100);
+    .replace(
+      /[<>:"/\\|?*\x00-\x1F]/g,
+      "_"
+    )
+    .replace(
+      /\s+/g,
+      "_"
+    )
+    .replace(
+      /_+/g,
+      "_"
+    )
+    .replace(
+      /^[_\s]+|[_\s]+$/g,
+      ""
+    )
+    .slice(
+      0,
+      100
+    );
 }
+
 
 async function createPdf() {
   hideError();
 
-  if (scannedImages.length === 0) {
+  if (
+    scannedImages.length ===
+    0
+  ) {
     return;
   }
 
@@ -953,20 +2179,20 @@ async function createPdf() {
   ) {
     showError(
       "PDF engine unavailable",
-      "jsPDF load হয়নি। Internet connection check করে page reload করুন।"
+      "jsPDF load হয়নি। Page reload করে আবার চেষ্টা করুন।"
     );
 
     return;
   }
 
   try {
-    confirmPdfBtn.disabled = true;
+    confirmPdfBtn.disabled =
+      true;
 
     let fileName =
-      pdfNameInput.value.trim();
-
-    fileName =
-      sanitizeFileName(fileName);
+      sanitizeFileName(
+        pdfNameInput.value.trim()
+      );
 
     if (!fileName) {
       fileName =
@@ -978,93 +2204,90 @@ async function createPdf() {
         .toLowerCase()
         .endsWith(".pdf")
     ) {
-      fileName += ".pdf";
+      fileName +=
+        ".pdf";
     }
 
-    const { jsPDF } =
+    const {
+      jsPDF
+    } =
       window.jspdf;
 
-    /*
-      Use first scanned image dimensions
-      instead of relying on the current filter canvas.
-    */
     const firstImage =
       await loadImage(
         scannedImages[0]
       );
 
-    const imageWidth =
+    const firstWidth =
       firstImage.naturalWidth ||
       firstImage.width;
 
-    const imageHeight =
+    const firstHeight =
       firstImage.naturalHeight ||
       firstImage.height;
 
     const pdf =
       new jsPDF({
         orientation:
-          imageWidth >= imageHeight
+          firstWidth >=
+          firstHeight
             ? "landscape"
             : "portrait",
 
         unit: "px",
 
         format: [
-          imageWidth,
-          imageHeight,
+          firstWidth,
+          firstHeight
         ],
 
-        compress: true,
+        compress: true
       });
 
     for (
-      let index = 0;
-      index < scannedImages.length;
-      index++
+      let i = 0;
+      i <
+      scannedImages.length;
+      i++
     ) {
-      if (index > 0) {
-        const image =
-          await loadImage(
-            scannedImages[index]
-          );
+      const image =
+        await loadImage(
+          scannedImages[i]
+        );
 
-        const width =
-          image.naturalWidth ||
-          image.width;
+      const width =
+        image.naturalWidth ||
+        image.width;
 
-        const height =
-          image.naturalHeight ||
-          image.height;
+      const height =
+        image.naturalHeight ||
+        image.height;
 
+      if (i > 0) {
         pdf.addPage(
-          [width, height],
+          [
+            width,
+            height
+          ],
           width >= height
             ? "landscape"
             : "portrait"
         );
-
-        pdf.addImage(
-          scannedImages[index],
-          "JPEG",
-          0,
-          0,
-          width,
-          height
-        );
-      } else {
-        pdf.addImage(
-          scannedImages[index],
-          "JPEG",
-          0,
-          0,
-          imageWidth,
-          imageHeight
-        );
       }
+
+      pdf.addImage(
+        scannedImages[i],
+        "JPEG",
+        0,
+        0,
+        width,
+        height
+      );
     }
 
-    pdf.save(fileName);
+    pdf.save(
+      fileName
+    );
 
     resetScans();
 
@@ -1072,12 +2295,14 @@ async function createPdf() {
 
     setStatus(
       "ready",
-      '<i class="fas fa-check-circle"></i><span>PDF saved successfully</span>',
+      '<i class="fas fa-check-circle"></i>' +
+      "<span>PDF saved successfully</span>",
       true
     );
+
   } catch (error) {
     console.error(
-      "PDF generation error:",
+      "PDF error:",
       error
     );
 
@@ -1085,46 +2310,57 @@ async function createPdf() {
       "PDF generation failed",
       "PDF তৈরি করা যায়নি। আবার চেষ্টা করুন।"
     );
+
   } finally {
-    confirmPdfBtn.disabled = false;
+    confirmPdfBtn.disabled =
+      false;
   }
 }
 
-function loadImage(src) {
+
+function loadImage(
+  src
+) {
   return new Promise(
     (resolve, reject) => {
       const image =
         new Image();
 
-      image.onload = () =>
-        resolve(image);
+      image.onload =
+        () => resolve(image);
 
-      image.onerror = () =>
-        reject(
-          new Error(
-            "Image could not be loaded."
-          )
-        );
+      image.onerror =
+        () =>
+          reject(
+            new Error(
+              "Image load failed."
+            )
+          );
 
-      image.src = src;
+      image.src =
+        src;
     }
   );
 }
 
+
 function resetScans() {
   scannedImages = [];
 
-  gallery.innerHTML = "";
+  gallery.innerHTML =
+    "";
 
   pageCount.innerHTML =
     '<i class="fas fa-copy"></i> Pages: 0';
 
-  pdfBtn.hidden = true;
+  pdfBtn.hidden =
+    true;
 }
 
-/* -------------------------
-   Event Listeners
-------------------------- */
+
+/* =========================================================
+   EVENT LISTENERS
+   ========================================================= */
 
 captureBtn.addEventListener(
   "click",
@@ -1171,47 +2407,55 @@ dismissErrorBtn.addEventListener(
   hideError
 );
 
-filterBtns.forEach((btn) => {
-  btn.addEventListener(
-    "click",
-    () => {
-      const filterType =
-        btn.dataset.filter;
 
-      setActiveFilterBtn(
-        filterType
-      );
+filterBtns.forEach(
+  (btn) => {
+    btn.addEventListener(
+      "click",
+      () => {
+        const type =
+          btn.dataset.filter;
 
-      applyFilter(
-        filterType
-      );
-    }
-  );
-});
+        setActiveFilterBtn(
+          type
+        );
+
+        applyFilter(
+          type
+        );
+      }
+    );
+  }
+);
+
 
 confirmPdfBtn.addEventListener(
   "click",
   createPdf
 );
 
-/* Enter key in PDF modal */
 
 pdfNameInput.addEventListener(
   "keydown",
   (event) => {
-    if (event.key === "Enter") {
+    if (
+      event.key ===
+      "Enter"
+    ) {
       event.preventDefault();
 
       createPdf();
     }
 
-    if (event.key === "Escape") {
+    if (
+      event.key ===
+      "Escape"
+    ) {
       closePdfModal();
     }
   }
 );
 
-/* Click outside modal */
 
 pdfNameModal.addEventListener(
   "click",
@@ -1225,9 +2469,10 @@ pdfNameModal.addEventListener(
   }
 );
 
-/* -------------------------
-   Page Lifecycle
-------------------------- */
+
+/* =========================================================
+   LIFECYCLE
+   ========================================================= */
 
 window.addEventListener(
   "load",
@@ -1236,6 +2481,7 @@ window.addEventListener(
   }
 );
 
+
 window.addEventListener(
   "beforeunload",
   () => {
@@ -1243,26 +2489,10 @@ window.addEventListener(
 
     destroyCropper();
 
-    if (originalCroppedMat) {
-      try {
-        originalCroppedMat.delete();
-      } catch (error) {
-        console.warn(
-          "Final OpenCV cleanup error:",
-          error
-        );
-      }
-
-      originalCroppedMat = null;
-    }
+    cleanupOriginalMat();
   }
 );
 
-/*
-  When page becomes hidden, stop camera.
-  When visible again, restart it.
-  This is especially useful on mobile.
-*/
 
 document.addEventListener(
   "visibilitychange",
@@ -1288,13 +2518,16 @@ document.addEventListener(
   }
 );
 
-/* -------------------------
-   Initial State
-------------------------- */
 
-setMainButtonsState(false);
+/* =========================================================
+   INITIAL STATE
+   ========================================================= */
+
+captureBtn.disabled =
+  true;
 
 setStatus(
   "loading",
-  '<i class="fas fa-spinner fa-spin"></i><span>AI Scanner Engine Loading...</span>'
+  '<i class="fas fa-spinner fa-spin"></i>' +
+  "<span>Smart Scanner Engine Loading...</span>"
 );
