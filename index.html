@@ -1,311 +1,439 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-    />
+<head>
+  <meta charset="UTF-8">
 
-    <meta
-      name="description"
-      content="WebScan - A fast, browser-based document scanner."
-    />
-    <meta name="theme-color" content="#121212" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  >
 
-    <title>WebScan Pro</title>
+  <meta
+    name="theme-color"
+    content="#111827"
+  >
 
-    <link rel="stylesheet" href="style.css" />
-    <link rel="manifest" href="manifest.json" />
+  <title>WebScan - Smart Document Scanner</title>
 
-    <!-- FontAwesome -->
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+  <!-- Font Awesome -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+  >
 
-    <!-- jsPDF -->
-    <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
-      defer
-    ></script>
+  <!-- Cropper -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"
+  >
 
-    <!-- Cropper.js -->
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css"
-    />
+  <link
+    rel="stylesheet"
+    href="style.css"
+  >
+</head>
 
-    <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"
-      defer
-    ></script>
+<body>
 
-    <!-- OpenCV -->
-    <script
-      async
-      src="https://docs.opencv.org/4.8.0/opencv.js"
-      onload="onOpenCvReady()"
-      onerror="onOpenCvError()"
-    ></script>
-  </head>
+  <main class="app">
 
-  <body>
-    <div class="app-container">
-      <!-- Header -->
-      <header>
-        <h2>
-          <i class="fas fa-file-scanner"></i>
-          WebScan
-        </h2>
+    <!-- =====================================================
+         CAMERA
+         ===================================================== -->
 
-        <span id="pageCount">
-          <i class="fas fa-copy"></i>
+    <section
+      id="cameraSection"
+      class="screen camera-screen"
+    >
+
+      <header class="topbar">
+        <div>
+          <h1>
+            <i class="fa-solid fa-scanner-touchscreen"></i>
+            WebScan
+          </h1>
+
+          <p>Smart Document Scanner</p>
+        </div>
+
+        <div
+          id="pageCount"
+          class="page-count"
+        >
+          <i class="fa-solid fa-copy"></i>
           Pages: 0
-        </span>
+        </div>
       </header>
+
+
+      <div class="camera-wrapper">
+
+        <video
+          id="video"
+          autoplay
+          playsinline
+          muted
+        ></video>
+
+        <!-- Real-time scanner overlay -->
+        <canvas
+          id="scannerOverlay"
+          class="scanner-overlay"
+        ></canvas>
+
+
+        <!-- Camera loading -->
+        <div
+          id="cameraPlaceholder"
+          class="camera-placeholder"
+        >
+          <div class="camera-loader">
+            <i class="fa-solid fa-camera"></i>
+          </div>
+
+          <p>Starting camera...</p>
+        </div>
+
+
+        <!-- Detection status -->
+        <div
+          id="detectionStatus"
+          class="detection-status"
+        >
+          <span
+            id="detectionDot"
+            class="detection-dot"
+          ></span>
+
+          <span id="detectionText">
+            Looking for document...
+          </span>
+        </div>
+
+
+        <!-- Scanner guide -->
+        <div class="scanner-guide">
+
+          <div class="guide-corner top-left"></div>
+          <div class="guide-corner top-right"></div>
+          <div class="guide-corner bottom-left"></div>
+          <div class="guide-corner bottom-right"></div>
+
+          <div class="guide-text">
+            Place your document inside the frame
+          </div>
+
+        </div>
+
+      </div>
+
 
       <!-- Status -->
       <div
         id="status"
-        class="status status-loading"
-        role="status"
-        aria-live="polite"
-      >
-        <i class="fas fa-spinner fa-spin"></i>
-        <span>AI Scanner Engine Loading...</span>
-      </div>
-
-      <!-- Error -->
-      <div
-        id="errorMessage"
-        class="error-message"
-        role="alert"
-        aria-live="assertive"
-        hidden
-      >
-        <i class="fas fa-circle-exclamation"></i>
-
-        <div>
-          <strong id="errorTitle">Something went wrong</strong>
-          <p id="errorText"></p>
-        </div>
-
-        <button id="dismissErrorBtn" class="icon-btn" type="button">
-          <i class="fas fa-xmark"></i>
-        </button>
-      </div>
-
-      <!-- Camera -->
-      <section
-        class="camera-section"
-        id="cameraSection"
-        aria-label="Camera scanner"
-      >
-        <video
-          id="video"
-          autoplay
-          muted
-          playsinline
-          aria-label="Camera preview"
-        ></video>
-
-        <canvas id="canvas" hidden></canvas>
-
-        <div id="cameraPlaceholder" class="camera-placeholder">
-          <i class="fas fa-camera"></i>
-          <p>Camera is starting...</p>
-        </div>
-
-        <div id="flashEffect" class="flash-effect"></div>
-      </section>
-
-      <!-- Crop -->
-      <section
-        class="crop-section"
-        id="cropSection"
-        aria-label="Crop document"
-        hidden
-      >
-        <img id="cropImage" src="" alt="Captured document preview" />
-      </section>
-
-      <!-- Filter -->
-      <section
-        class="filter-section"
-        id="filterSection"
-        aria-label="Document filters"
-        hidden
-      >
-        <div class="filter-preview">
-          <canvas id="filterCanvas"></canvas>
-        </div>
-
-        <div class="filter-options">
-          <button
-            class="filter-btn"
-            type="button"
-            data-filter="original"
-          >
-            <i class="fas fa-image"></i>
-            Original
-          </button>
-
-          <button
-            class="filter-btn active"
-            type="button"
-            data-filter="magic"
-          >
-            <i class="fas fa-wand-magic-sparkles"></i>
-            Magic Color
-          </button>
-
-          <button
-            class="filter-btn"
-            type="button"
-            data-filter="bw"
-          >
-            <i class="fas fa-adjust"></i>
-            B&W
-          </button>
-        </div>
-      </section>
-
-      <!-- Gallery -->
-      <div
-        class="gallery-container"
-        id="gallery"
-        aria-label="Scanned pages"
+        class="status"
       ></div>
 
+
       <!-- Main controls -->
-      <div class="bottom-controls" id="mainControls">
+      <div
+        id="mainControls"
+        class="controls"
+      >
+
         <button
           id="captureBtn"
-          class="primary-btn"
+          class="capture-button"
           type="button"
           disabled
         >
-          <i class="fas fa-camera"></i>
-          <span>স্ক্যান করুন</span>
+          <span class="capture-inner"></span>
         </button>
 
         <button
           id="pdfBtn"
-          class="secondary-btn"
+          class="secondary-button"
           type="button"
           hidden
         >
-          <i class="fas fa-file-pdf"></i>
-          <span>PDF সেভ করুন</span>
+          <i class="fa-solid fa-file-pdf"></i>
+          Create PDF
         </button>
+
       </div>
 
-      <!-- Crop controls -->
+
+      <!-- Gallery -->
       <div
-        class="bottom-controls"
-        id="cropControls"
-        hidden
-      >
+        id="gallery"
+        class="gallery"
+      ></div>
+
+    </section>
+
+
+    <!-- =====================================================
+         CROP
+         ===================================================== -->
+
+    <section
+      id="cropSection"
+      class="screen crop-screen"
+      hidden
+    >
+
+      <header class="editor-header">
+
         <button
           id="cancelCropBtn"
-          class="secondary-btn danger-btn"
+          class="icon-button"
           type="button"
         >
-          <i class="fas fa-xmark"></i>
-          বাতিল
+          <i class="fa-solid fa-xmark"></i>
         </button>
+
+        <h2>Adjust Document</h2>
+
+        <div></div>
+
+      </header>
+
+
+      <div class="crop-container">
+
+        <img
+          id="cropImage"
+          alt="Document preview"
+        >
+
+      </div>
+
+
+      <div
+        id="cropControls"
+        class="editor-controls"
+        hidden
+      >
 
         <button
           id="applyCropBtn"
-          class="primary-btn"
+          class="primary-button"
           type="button"
         >
-          নেক্সট
-          <i class="fas fa-arrow-right"></i>
+          <i class="fa-solid fa-check"></i>
+          Continue
         </button>
+
       </div>
 
-      <!-- Filter controls -->
-      <div
-        class="bottom-controls"
-        id="filterControls"
-        hidden
-      >
+    </section>
+
+
+    <!-- =====================================================
+         FILTER
+         ===================================================== -->
+
+    <section
+      id="filterSection"
+      class="screen filter-screen"
+      hidden
+    >
+
+      <header class="editor-header">
+
         <button
           id="backToCropBtn"
-          class="secondary-btn"
+          class="icon-button"
           type="button"
         >
-          <i class="fas fa-arrow-left"></i>
-          ব্যাক
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+
+        <h2>Enhance Scan</h2>
+
+        <div></div>
+
+      </header>
+
+
+      <div class="filter-preview">
+
+        <canvas
+          id="filterCanvas"
+        ></canvas>
+
+      </div>
+
+
+      <div
+        id="filterControls"
+        class="filter-controls"
+        hidden
+      >
+
+        <button
+          class="filter-btn"
+          data-filter="original"
+          type="button"
+        >
+          <span>Original</span>
+        </button>
+
+        <button
+          class="filter-btn active"
+          data-filter="magic"
+          type="button"
+        >
+          <span>Magic Color</span>
+        </button>
+
+        <button
+          class="filter-btn"
+          data-filter="bw"
+          type="button"
+        >
+          <span>B&W</span>
         </button>
 
         <button
           id="saveFilterBtn"
-          class="primary-btn"
+          class="primary-button"
           type="button"
         >
-          <i class="fas fa-save"></i>
-          গ্যালারিতে সেভ
+          <i class="fa-solid fa-check"></i>
+          Save Page
         </button>
+
       </div>
+
+    </section>
+
+
+    <!-- =====================================================
+         ERROR
+         ===================================================== -->
+
+    <div
+      id="errorMessage"
+      class="error-modal"
+      hidden
+    >
+
+      <div class="error-card">
+
+        <div class="error-icon">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+
+        <h3 id="errorTitle">
+          Something went wrong
+        </h3>
+
+        <p id="errorText"></p>
+
+        <button
+          id="dismissErrorBtn"
+          class="primary-button"
+          type="button"
+        >
+          OK
+        </button>
+
+      </div>
+
     </div>
 
-    <!-- PDF Modal -->
+
+    <!-- =====================================================
+         PDF MODAL
+         ===================================================== -->
+
     <div
       id="pdfNameModal"
-      class="modal-overlay"
+      class="modal-backdrop"
       hidden
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="pdfModalTitle"
     >
-      <div class="modal-content">
+
+      <div class="modal-card">
+
         <button
           id="closePdfModalBtn"
           class="modal-close"
           type="button"
-          aria-label="Close"
         >
-          <i class="fas fa-xmark"></i>
+          <i class="fa-solid fa-xmark"></i>
         </button>
 
-        <h3 id="pdfModalTitle">
-          <i class="fas fa-file-signature"></i>
-          PDF ফাইলের নাম দিন
-        </h3>
+        <h3>Save PDF</h3>
+
+        <p>
+          Enter a name for your document.
+        </p>
 
         <input
-          type="text"
           id="pdfNameInput"
-          placeholder="যেমন: My_Document"
+          type="text"
           value="WebScan_Document"
           autocomplete="off"
-        />
+        >
 
-        <div class="modal-buttons">
+        <div class="modal-actions">
+
           <button
             id="cancelPdfBtn"
-            class="secondary-btn danger-btn"
+            class="secondary-button"
             type="button"
           >
-            <i class="fas fa-xmark"></i>
-            বাতিল
+            Cancel
           </button>
 
           <button
             id="confirmPdfBtn"
-            class="primary-btn"
+            class="primary-button"
             type="button"
           >
-            <i class="fas fa-check"></i>
-            সেভ করুন
+            <i class="fa-solid fa-file-pdf"></i>
+            Save PDF
           </button>
+
         </div>
+
       </div>
+
     </div>
 
-    <script src="script.js" defer></script>
-  </body>
+
+    <!-- Capture flash -->
+    <div
+      id="flashEffect"
+      class="flash-effect"
+    ></div>
+
+  </main>
+
+
+  <!-- OpenCV -->
+  <script
+    async
+    src="https://docs.opencv.org/4.x/opencv.js"
+    onload="onOpenCvReady()"
+  ></script>
+
+
+  <!-- Cropper -->
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"
+  ></script>
+
+
+  <!-- jsPDF -->
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+  ></script>
+
+
+  <!-- App -->
+  <script src="script.js"></script>
+
+</body>
 </html>
