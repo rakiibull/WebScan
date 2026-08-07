@@ -1,624 +1,1081 @@
 /* =========================================================
-   WebScan - Step 3
-   Real-time Document Detection UI
+   WebScan - Complete Responsive Styles
+   iPhone / Safari Optimized
    ========================================================= */
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
-html,
-body {
+
+:root {
+  --bg: #070a10;
+  --surface: #111827;
+  --surface-2: #172033;
+  --surface-3: #0b101a;
+
+  --border: #29354a;
+  --border-light: #34425a;
+
+  --text: #f8fafc;
+  --text-secondary: #a8b2c5;
+  --text-muted: #717d92;
+
+  --primary: #4ade80;
+  --primary-dark: #22c55e;
+
+  --danger: #ef4444;
+
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+html {
   width: 100%;
   min-height: 100%;
-  background: #0b0f19;
-  color: #ffffff;
+  background: var(--bg);
+  color-scheme: dark;
+  overscroll-behavior: none;
+}
+
+body {
+  width: 100%;
+  min-height: 100dvh;
+
+  background:
+    radial-gradient(
+      circle at 50% 45%,
+      rgba(50, 60, 80, 0.10),
+      transparent 32%
+    ),
+    var(--bg);
+
+  color: var(--text);
+
   font-family:
     -apple-system,
     BlinkMacSystemFont,
+    "SF Pro Display",
+    "SF Pro Text",
     "Segoe UI",
     Roboto,
+    Helvetica,
     Arial,
     sans-serif;
-}
-body {
+
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
 }
-button,
-input {
+
+/* Prevent iOS zoom on inputs */
+input,
+textarea,
+select,
+button {
   font: inherit;
 }
-button {
-  cursor: pointer;
+
+input,
+textarea,
+select {
+  font-size: 16px;
 }
+
 /* =========================================================
-   APP
+   App Container
    ========================================================= */
-.app {
+
+#app,
+.app,
+.app-container {
   width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
-  background: #0b0f19;
-}
-.screen {
-  width: 100%;
-  min-height: 100vh;
   min-height: 100dvh;
 }
+
+.page,
+.main,
+main {
+  width: 100%;
+}
+
 /* =========================================================
-   TOPBAR
+   Header
    ========================================================= */
-.topbar {
-  height: 76px;
-  padding:
-    12px 18px;
+
+header,
+.header {
+  width: 100%;
+
+  padding-top: calc(14px + var(--safe-top));
+  padding-left: 18px;
+  padding-right: 18px;
+  padding-bottom: 14px;
+
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(11, 15, 25, 0.96);
+
+  background: rgba(7, 10, 16, 0.92);
+
+  border-bottom: 1px solid rgba(52, 66, 90, 0.35);
+
+  position: relative;
+  z-index: 10;
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
-.topbar h1 {
-  font-size: 20px;
-  font-weight: 750;
-  letter-spacing: -0.3px;
-}
-.topbar h1 i {
-  margin-right: 7px;
-}
-.topbar p {
-  margin-top: 3px;
-  color: #8d96a8;
-  font-size: 12px;
-}
-.page-count {
+
+.logo {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 11px;
-  border: 1px solid #273044;
-  border-radius: 999px;
-  background: #151b29;
-  color: #cbd3e1;
-  font-size: 12px;
+  gap: 10px;
+
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -0.4px;
 }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* =========================================================
-   CAMERA
+   Buttons
    ========================================================= */
-.camera-wrapper {
-  position: relative;
-  width: 100%;
-  height: calc(100vh - 76px - 150px);
-  height: calc(100dvh - 76px - 150px);
-  min-height: 420px;
-  overflow: hidden;
-  background: #05070b;
+
+button {
+  border: 0;
+  outline: none;
+  cursor: pointer;
+
+  color: var(--text);
+
+  touch-action: manipulation;
+
+  -webkit-user-select: none;
+  user-select: none;
+
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
 }
-#video {
-  position: absolute;
-  inset: 0;
+
+button:active {
+  transform: scale(0.97);
+}
+
+.btn {
+  min-height: 48px;
+
+  padding: 0 20px;
+
+  border-radius: 15px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #07130b;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  color: #f87171;
+}
+
+/* =========================================================
+   Scanner Area
+   ========================================================= */
+
+.scanner-container {
+  width: 100%;
+  min-height: calc(100dvh - 80px);
+
+  padding:
+    20px
+    max(20px, var(--safe-right))
+    calc(30px + var(--safe-bottom))
+    max(20px, var(--safe-left));
+
+  display: flex;
+  flex-direction: column;
+}
+
+.scanner {
+  position: relative;
+
+  width: 100%;
+  max-width: 900px;
+
+  margin: 0 auto;
+
+  overflow: hidden;
+
+  border-radius: 24px;
+
+  background: #000;
+
+  border: 1px solid var(--border);
+
+  aspect-ratio: 3 / 4;
+}
+
+.scanner video,
+.scanner canvas,
+.scanner img {
+  display: block;
+
   width: 100%;
   height: 100%;
+
   object-fit: cover;
 }
-/* =========================================================
-   OPENCV OVERLAY
-   ========================================================= */
+
 .scanner-overlay {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 4;
-}
-/* =========================================================
-   CAMERA PLACEHOLDER
-   ========================================================= */
-.camera-placeholder {
-  position: absolute;
-  inset: 0;
-  z-index: 8;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #080b12;
-}
-.camera-loader {
-  width: 58px;
-  height: 58px;
-  display: grid;
-  place-items: center;
-  border: 1px solid #2c3548;
-  border-radius: 50%;
-  background: #121826;
-}
-.camera-loader i {
-  font-size: 22px;
-}
-.camera-placeholder p {
-  margin-top: 13px;
-  color: #929caf;
-  font-size: 13px;
-}
-/* =========================================================
-   SCANNER GUIDE
-   ========================================================= */
-.scanner-guide {
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  top: 13%;
-  bottom: 13%;
-  z-index: 3;
+
   pointer-events: none;
 }
-.guide-corner {
+
+.scanner-corners {
   position: absolute;
-  width: 42px;
-  height: 42px;
-  border-color: rgba(255, 255, 255, 0.72);
-  border-style: solid;
-  transition:
-    border-color 0.25s ease,
-    transform 0.25s ease;
-}
-.guide-corner.top-left {
-  top: 0;
-  left: 0;
-  border-width: 4px 0 0 4px;
-}
-.guide-corner.top-right {
-  top: 0;
-  right: 0;
-  border-width: 4px 4px 0 0;
-}
-.guide-corner.bottom-left {
-  bottom: 0;
-  left: 0;
-  border-width: 0 0 4px 4px;
-}
-.guide-corner.bottom-right {
-  bottom: 0;
-  right: 0;
-  border-width: 0 4px 4px 0;
-}
-.scanner-guide.detected .guide-corner {
-  border-color: #35e89b;
-  transform: scale(1.06);
-}
-.guide-text {
-  position: absolute;
-  left: 50%;
-  bottom: -38px;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 90%;
-  padding: 7px 12px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.52);
-  color: rgba(255, 255, 255, 0.86);
-  font-size: 11px;
-  text-align: center;
-  backdrop-filter: blur(8px);
-}
-/* =========================================================
-   DETECTION STATUS
-   ========================================================= */
-.detection-status {
-  position: absolute;
-  top: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 13px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  background: rgba(8, 11, 18, 0.7);
-  color: #d8deea;
-  font-size: 12px;
-  backdrop-filter: blur(12px);
-  white-space: nowrap;
-}
-.detection-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #f5b942;
-  box-shadow:
-    0 0 0 4px rgba(245, 185, 66, 0.12);
-  animation:
-    detectionPulse 1.5s infinite;
-}
-.detection-status.ready {
-  color: #aaf4d0;
-}
-.detection-status.ready .detection-dot {
-  background: #35e89b;
-  box-shadow:
-    0 0 0 4px rgba(53, 232, 155, 0.13);
-}
-@keyframes detectionPulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
-}
-/* =========================================================
-   STATUS
-   ========================================================= */
-.status {
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 5px 12px;
-  color: #aeb7c7;
-  font-size: 12px;
-  text-align: center;
-}
-.status-ready {
-  color: #9ee8c5;
-}
-.status-error {
-  color: #ff9d9d;
-}
-.status-hidden {
-  opacity: 0;
-}
-/* =========================================================
-   CONTROLS
-   ========================================================= */
-.controls {
-  min-height: 102px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  padding:
-    12px 18px;
-  background: #0b0f19;
-}
-/* =========================================================
-   CAPTURE BUTTON
-   ========================================================= */
-.capture-button {
-  position: relative;
-  width: 74px;
-  height: 74px;
-  display: grid;
-  place-items: center;
-  border: 3px solid #ffffff;
-  border-radius: 50%;
-  background: transparent;
-  transition:
-    transform 0.15s ease,
-    opacity 0.2s ease;
-}
-.capture-button:hover:not(:disabled) {
-  transform: scale(1.04);
-}
-.capture-button:active:not(:disabled) {
-  transform: scale(0.95);
-}
-.capture-button:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-.capture-inner {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  background: #ffffff;
-}
-/* =========================================================
-   BUTTONS
-   ========================================================= */
-.primary-button,
-.secondary-button {
-  min-height: 44px;
+  inset: 10%;
+
+  border: 2px solid rgba(255, 255, 255, 0.85);
+
   border-radius: 12px;
-  padding:
-    0 16px;
-  border: 0;
-  font-weight: 700;
-  transition:
-    transform 0.15s ease,
-    opacity 0.2s ease;
 }
-.primary-button {
-  background: #ffffff;
-  color: #0b0f19;
-}
-.secondary-button {
-  border: 1px solid #2c3548;
-  background: #151b29;
-  color: #e7ebf2;
-}
-.primary-button:hover,
-.secondary-button:hover {
-  transform: translateY(-1px);
-}
-.primary-button:disabled,
-.secondary-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
+
 /* =========================================================
-   GALLERY
+   Bottom Controls
    ========================================================= */
-.gallery {
-  display: flex;
-  gap: 8px;
+
+.bottom-controls {
   width: 100%;
-  overflow-x: auto;
+
   padding:
-    0 14px 12px;
-  scrollbar-width: none;
-}
-.gallery::-webkit-scrollbar {
-  display: none;
-}
-.gallery img {
-  width: 60px;
-  height: 76px;
-  flex: 0 0 auto;
-  object-fit: cover;
-  border:
-    1px solid #313b4e;
-  border-radius: 7px;
-  background: #161c29;
-}
-/* =========================================================
-   CROP / FILTER
-   ========================================================= */
-.editor-header {
-  height: 64px;
-  display: grid;
-  grid-template-columns: 48px 1fr 48px;
-  align-items: center;
-  padding:
-    0 12px;
-  border-bottom:
-    1px solid #20283a;
-}
-.editor-header h2 {
-  font-size: 16px;
-  text-align: center;
-}
-.icon-button {
-  width: 42px;
-  height: 42px;
-  border: 0;
-  border-radius: 50%;
-  background: #161d2b;
-  color: #ffffff;
-}
-.crop-container {
-  height: calc(100vh - 130px);
-  height: calc(100dvh - 130px);
+    16px 20px
+    calc(16px + var(--safe-bottom));
+
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #05070b;
-  overflow: hidden;
+  gap: 14px;
+
+  background: rgba(7, 10, 16, 0.94);
+
+  border-top: 1px solid rgba(52, 66, 90, 0.4);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
-.crop-container img {
-  display: block;
-  max-width: 100%;
-  max-height: 100%;
-}
-.editor-controls,
-.filter-controls {
-  min-height: 88px;
+
+/* =========================================================
+   Modal Overlay
+   ========================================================= */
+
+.modal-overlay {
+  position: fixed;
+
+  /*
+    Use dynamic viewport height instead of 100vh.
+    This fixes iPhone Safari address-bar problems.
+  */
+  inset: 0;
+
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+
+  padding:
+    max(20px, var(--safe-top))
+    max(20px, var(--safe-right))
+    max(20px, var(--safe-bottom))
+    max(20px, var(--safe-left));
+
   display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.72);
+
+  z-index: 9999;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  overscroll-behavior: contain;
+
+  -webkit-overflow-scrolling: touch;
+
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+/*
+  When JS adds "hidden", completely remove modal.
+*/
+.modal-overlay.hidden,
+.modal-overlay[hidden] {
+  display: none !important;
+}
+
+/* =========================================================
+   Modal
+   ========================================================= */
+
+.modal {
+  position: relative;
+
+  width: min(100%, 750px);
+
+  /*
+    Prevent modal from going behind Safari UI
+    or keyboard.
+  */
+  max-height: calc(
+    100dvh -
+    var(--safe-top) -
+    var(--safe-bottom) -
+    32px
+  );
+
+  overflow-y: auto;
+
+  margin: auto;
+
+  padding:
+    28px
+    28px
+    calc(28px + var(--safe-bottom));
+
+  background: #111827;
+
+  border: 1px solid #334158;
+
+  border-radius: 28px;
+
+  box-shadow:
+    0 25px 70px rgba(0, 0, 0, 0.55),
+    0 8px 30px rgba(0, 0, 0, 0.35);
+
+  color: var(--text);
+
+  -webkit-overflow-scrolling: touch;
+
+  animation: modalIn 0.2s ease-out;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* =========================================================
+   Save PDF Modal
+   ========================================================= */
+
+#pdfNameModal .modal,
+.save-pdf-modal {
+  width: min(750px, calc(100vw - 40px));
+
+  background: #111827;
+
+  border: 1px solid #334158;
+
+  border-radius: 28px;
+
+  padding: 28px;
+}
+
+/*
+  Make Save PDF modal look good on iPhone.
+*/
+#pdfNameModal {
+  align-items: center;
+  justify-content: center;
+}
+
+#pdfNameModal .modal-title,
+#pdfNameModal h2,
+#pdfNameModal h3 {
+  text-align: center;
+
+  margin: 0;
+
+  font-size: clamp(28px, 5vw, 38px);
+  line-height: 1.15;
+
+  font-weight: 750;
+
+  letter-spacing: -0.7px;
+}
+
+#pdfNameModal .modal-subtitle,
+#pdfNameModal p {
+  text-align: center;
+
+  color: var(--text-secondary);
+
+  font-size: clamp(16px, 3.8vw, 22px);
+
+  line-height: 1.45;
+
+  margin-top: 12px;
+}
+
+/* =========================================================
+   Modal Close Button
+   ========================================================= */
+
+.modal-close,
+#closePdfModal,
+.close-modal {
+  position: absolute;
+
+  top: 20px;
+  right: 20px;
+
+  width: 52px;
+  height: 52px;
+
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: #1b2638;
+
+  border: 1px solid rgba(255, 255, 255, 0.02);
+
+  color: #fff;
+
+  font-size: 32px;
+  line-height: 1;
+
+  z-index: 2;
+}
+
+.modal-close:hover,
+#closePdfModal:hover,
+.close-modal:hover {
+  background: #243148;
+}
+
+/* =========================================================
+   Form
+   ========================================================= */
+
+.form-group {
+  width: 100%;
+
+  margin-top: 24px;
+}
+
+.form-group label {
+  display: block;
+
+  margin-bottom: 9px;
+
+  color: var(--text-secondary);
+
+  font-size: 14px;
+  font-weight: 600;
+}
+
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="number"],
+textarea,
+select {
+  width: 100%;
+
+  min-height: 56px;
+
+  padding: 0 16px;
+
+  border-radius: 15px;
+
+  border: 2px solid var(--border);
+
+  outline: none;
+
+  background: #090e17;
+
+  color: #fff;
+
+  font-size: 17px;
+
+  -webkit-appearance: none;
+  appearance: none;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+textarea {
+  min-height: 120px;
+
+  padding-top: 14px;
+  padding-bottom: 14px;
+
+  resize: vertical;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #3d4e69;
+
+  box-shadow:
+    0 0 0 3px rgba(74, 222, 128, 0.08);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #647084;
+}
+
+/* =========================================================
+   Save PDF Actions
+   ========================================================= */
+
+.modal-actions {
+  width: 100%;
+
+  margin-top: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 14px;
+}
+
+#cancelPdfBtn,
+.cancel-btn {
+  min-height: 64px;
+
+  padding: 0 28px;
+
+  border-radius: 18px;
+
+  background: #151d2b;
+
+  border: 2px solid #2c3950;
+
+  color: #e5eaf2;
+
+  font-size: 18px;
+
+  font-weight: 700;
+}
+
+#confirmPdfBtn,
+.save-pdf-btn {
+  min-height: 64px;
+
+  padding: 0 28px;
+
+  border-radius: 18px;
+
+  background: #fff;
+
+  color: #0b101a;
+
+  font-size: 18px;
+
+  font-weight: 750;
+
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 12px 16px;
-  background: #0b0f19;
+
+  box-shadow: none;
 }
-.filter-preview {
-  height: calc(100vh - 180px);
-  height: calc(100dvh - 180px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-  background: #05070b;
+
+#confirmPdfBtn:hover,
+.save-pdf-btn:hover {
+  background: #f1f5f9;
 }
-#filterCanvas {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+
+#confirmPdfBtn:disabled,
+.save-pdf-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
-.filter-controls {
-  flex-wrap: wrap;
-}
-.filter-btn {
-  min-height: 42px;
-  padding:
-    0 13px;
-  border: 1px solid #2b3548;
-  border-radius: 10px;
-  background: #151b29;
-  color: #aeb7c7;
-}
-.filter-btn.active {
-  border-color: #ffffff;
-  background: #ffffff;
-  color: #0b0f19;
-}
+
 /* =========================================================
-   ERROR MODAL
+   PDF Icon
    ========================================================= */
-.error-modal,
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
+
+.pdf-icon {
+  width: 26px;
+  height: 26px;
+
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  background:
-    rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(8px);
+
+  flex-shrink: 0;
 }
-.error-card,
-.modal-card {
-  position: relative;
-  width: min(420px, 100%);
-  padding: 24px;
-  border:
-    1px solid #2b3548;
-  border-radius: 20px;
-  background: #111827;
-  box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.35);
+
+/* =========================================================
+   Cards
+   ========================================================= */
+
+.card {
+  width: 100%;
+
+  padding: 20px;
+
+  background: var(--surface);
+
+  border: 1px solid var(--border);
+
+  border-radius: var(--radius-md);
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 700;
+
+  margin-bottom: 8px;
+}
+
+.card-text {
+  color: var(--text-secondary);
+
+  line-height: 1.5;
+}
+
+/* =========================================================
+   Preview
+   ========================================================= */
+
+.preview-container {
+  width: 100%;
+
+  max-width: 900px;
+
+  margin: 0 auto;
+}
+
+.preview-image {
+  display: block;
+
+  width: 100%;
+  height: auto;
+
+  border-radius: 18px;
+
+  border: 1px solid var(--border);
+
+  background: #000;
+}
+
+/* =========================================================
+   Loading
+   ========================================================= */
+
+.loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+
+  border-radius: 50%;
+
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: currentColor;
+
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================================================
+   Toast / Notification
+   ========================================================= */
+
+.toast-container {
+  position: fixed;
+
+  left: 20px;
+  right: 20px;
+
+  bottom: calc(20px + var(--safe-bottom));
+
+  z-index: 10000;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  pointer-events: none;
+}
+
+.toast {
+  max-width: min(500px, 100%);
+
+  padding: 14px 18px;
+
+  border-radius: 14px;
+
+  background: #182235;
+
+  border: 1px solid #30405a;
+
+  color: #fff;
+
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+
+  pointer-events: auto;
+
+  animation: toastIn 0.2s ease-out;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================================
+   Mobile
+   ========================================================= */
+
+@media (max-width: 700px) {
+  body {
+    min-height: 100dvh;
+  }
+
+  header,
+  .header {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .scanner-container {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .scanner {
+    border-radius: 20px;
+  }
+
+  /* -----------------------------
+     Mobile Save PDF Modal
+     ----------------------------- */
+
+  .modal-overlay {
+    /*
+      Important:
+      Do NOT use align-items:flex-end here.
+      This keeps modal centered like the screenshot.
+    */
+    align-items: center;
+    justify-content: center;
+
+    padding:
+      max(16px, var(--safe-top))
+      max(16px, var(--safe-right))
+      max(16px, var(--safe-bottom))
+      max(16px, var(--safe-left));
+  }
+
+  .modal {
+    width: 100%;
+
+    max-width: 100%;
+
+    max-height: calc(
+      100dvh -
+      var(--safe-top) -
+      var(--safe-bottom) -
+      32px
+    );
+
+    padding: 24px 20px;
+
+    border-radius: 26px;
+  }
+
+  #pdfNameModal .modal,
+  .save-pdf-modal {
+    width: 100%;
+
+    padding: 24px 20px;
+
+    border-radius: 26px;
+  }
+
+  #pdfNameModal .modal-title,
+  #pdfNameModal h2,
+  #pdfNameModal h3 {
+    padding-left: 50px;
+    padding-right: 50px;
+
+    font-size: 30px;
+  }
+
+  #pdfNameModal .modal-subtitle,
+  #pdfNameModal p {
+    font-size: 17px;
+
+    margin-top: 10px;
+  }
+
+  .modal-close,
+  #closePdfModal,
+  .close-modal {
+    width: 48px;
+    height: 48px;
+
+    top: 16px;
+    right: 16px;
+
+    font-size: 29px;
+  }
+
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="number"] {
+    min-height: 58px;
+
+    font-size: 17px;
+  }
+
+  .modal-actions {
+    gap: 12px;
+  }
+
+  #cancelPdfBtn,
+  #confirmPdfBtn,
+  .cancel-btn,
+  .save-pdf-btn {
+    min-height: 62px;
+
+    padding-left: 18px;
+    padding-right: 18px;
+
+    border-radius: 18px;
+
+    font-size: 17px;
+  }
+
+  #cancelPdfBtn,
+  .cancel-btn {
+    flex: 0 0 auto;
+  }
+
+  #confirmPdfBtn,
+  .save-pdf-btn {
+    flex: 1;
+  }
+}
+
+/* =========================================================
+   Small iPhones
+   ========================================================= */
+
+@media (max-width: 390px) {
+  .modal {
+    padding: 20px 16px;
+  }
+
+  #pdfNameModal .modal,
+  .save-pdf-modal {
+    padding: 20px 16px;
+  }
+
+  #pdfNameModal .modal-title,
+  #pdfNameModal h2,
+  #pdfNameModal h3 {
+    font-size: 27px;
+
+    padding-left: 42px;
+    padding-right: 42px;
+  }
+
+  #pdfNameModal .modal-subtitle,
+  #pdfNameModal p {
+    font-size: 16px;
+  }
+
+  .modal-actions {
+    gap: 9px;
+  }
+
+  #cancelPdfBtn,
+  #confirmPdfBtn,
+  .cancel-btn,
+  .save-pdf-btn {
+    min-height: 58px;
+
+    padding-left: 14px;
+    padding-right: 14px;
+
+    font-size: 16px;
+  }
+}
+
+/* =========================================================
+   iPhone Landscape
+   ========================================================= */
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .modal-overlay {
+    align-items: flex-start;
+
+    padding-top: calc(12px + var(--safe-top));
+    padding-bottom: calc(12px + var(--safe-bottom));
+  }
+
+  .modal {
+    margin: auto;
+
+    max-height: calc(
+      100dvh -
+      var(--safe-top) -
+      var(--safe-bottom) -
+      24px
+    );
+
+    padding: 20px;
+  }
+
+  #pdfNameModal .modal,
+  .save-pdf-modal {
+    padding: 20px;
+  }
+
+  .modal-actions {
+    margin-top: 18px;
+  }
+}
+
+/* =========================================================
+   iOS Keyboard Handling
+   ========================================================= */
+
+@supports (-webkit-touch-callout: none) {
+  .modal-overlay {
+    min-height: -webkit-fill-available;
+  }
+
+  body {
+    min-height: -webkit-fill-available;
+  }
+}
+
+/* =========================================================
+   Accessibility
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* =========================================================
+   Prevent accidental text selection on UI
+   ========================================================= */
+
+button,
+.modal-close,
+.header-actions,
+.bottom-controls {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* =========================================================
+   Utility
+   ========================================================= */
+
+.hidden {
+  display: none !important;
+}
+
+.no-scroll {
+  overflow: hidden !important;
+}
+
+.text-center {
   text-align: center;
 }
-.error-icon {
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 14px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #2a1c1c;
-  color: #ff8d8d;
-}
-.error-card h3,
-.modal-card h3 {
-  font-size: 18px;
-}
-.error-card p,
-.modal-card p {
-  margin-top: 9px;
-  color: #9da7b8;
-  font-size: 13px;
-  line-height: 1.6;
-}
-.error-card .primary-button {
-  margin-top: 18px;
-}
-.modal-close {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 50%;
-  background: #1a2231;
-  color: #ffffff;
-}
-#pdfNameInput {
+
+.w-full {
   width: 100%;
-  margin-top: 18px;
-  height: 46px;
-  padding:
-    0 13px;
-  border:
-    1px solid #303b50;
-  border-radius: 10px;
-  outline: none;
-  background: #0b0f19;
-  color: #ffffff;
-}
-#pdfNameInput:focus {
-  border-color: #ffffff;
-}
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}
-/* =========================================================
-   FLASH
-   ========================================================= */
-.flash-effect {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  pointer-events: none;
-  background: #ffffff;
-  opacity: 0;
-}
-.flash-active {
-  animation:
-    cameraFlash 0.18s ease-out;
-}
-@keyframes cameraFlash {
-  0% {
-    opacity: 0.75;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-/* =========================================================
-   RESPONSIVE
-   ========================================================= */
-@media (max-width: 600px) {
-  .topbar {
-    height: 68px;
-  }
-  .camera-wrapper {
-    height: calc(100dvh - 68px - 145px);
-  }
-  .scanner-guide {
-    left: 7%;
-    right: 7%;
-    top: 12%;
-    bottom: 15%;
-  }
-  .guide-corner {
-    width: 34px;
-    height: 34px;
-  }
-  .guide-text {
-    font-size: 10px;
-  }
-  .capture-button {
-    width: 68px;
-    height: 68px;
-  }
-  .capture-inner {
-    width: 53px;
-    height: 53px;
-  }
-  .detection-status {
-    top: 12px;
-  }
-}
-@media (orientation: landscape) {
-  .camera-wrapper {
-    height: calc(100dvh - 70px);
-  }
-  .topbar {
-    height: 70px;
-  }
-  .controls {
-    position: absolute;
-    right: 15px;
-    bottom: 15px;
-    min-height: auto;
-    background: transparent;
-  }
-  .status {
-    position: absolute;
-    left: 50%;
-    bottom: 12px;
-    z-index: 20;
-    transform: translateX(-50%);
-  }
 }
