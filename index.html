@@ -424,6 +424,24 @@
       <div class="editor-header-actions">
 
         <button
+          id="undoBtn"
+          class="history-btn"
+          aria-label="Undo"
+          disabled
+        >
+          ↶
+        </button>
+
+        <button
+          id="redoBtn"
+          class="history-btn"
+          aria-label="Redo"
+          disabled
+        >
+          ↷
+        </button>
+
+        <button
           id="editorPagesBtn"
           class="pages-link-btn"
         >
@@ -532,6 +550,30 @@
           >
             <span>◐</span>
             <small>Contrast</small>
+          </button>
+
+          <button
+            class="adjust-btn"
+            data-tool="exposure"
+          >
+            <span>☀</span>
+            <small>Exposure</small>
+          </button>
+
+          <button
+            class="adjust-btn"
+            data-tool="saturation"
+          >
+            <span>◍</span>
+            <small>Saturation</small>
+          </button>
+
+          <button
+            class="adjust-btn"
+            data-tool="sharpness"
+          >
+            <span>◈</span>
+            <small>Sharpness</small>
           </button>
 
           <button
@@ -1076,6 +1118,9 @@
 
 </div>
 
+
+    <!-- Non-destructive edit history (undo / redo / reset) -->
+    <script src="editor-history.js"></script>
 
 <script src="script.js"></script>
 

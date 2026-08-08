@@ -44,6 +44,12 @@ const state = {
 
   favorite: false,
 
+  sharpness: 0,
+
+  saturation: 0,
+
+  exposure: 0,
+
   darkMode: true,
 
   autoCapture: false,
@@ -404,21 +410,9 @@ function capturePhoto() {
     );
 
 
-  state.pages.push({
-
-    id: Date.now() + Math.random(),
-
-    src: data,
-
-    filter: "original",
-
-    brightness: 0,
-
-    contrast: 0,
-
-    rotation: 0
-
-  });
+  state.pages.push(
+    createPage(data)
+  );
 
 
   state.currentPage =
@@ -472,25 +466,14 @@ async function handleFiles(files) {
         await fileToDataURL(file);
 
 
-      state.pages.push({
-
-        id: Date.now() + Math.random(),
-
-        src: data,
-
-        filter: "original",
-
-        brightness: 0,
-
-        contrast: 0,
-
-        rotation: 0,
-
-        // Corners detected at capture time, used to pre-fill the manual
-        // crop handles. Null for gallery imports and cropped scans.
-        corners: window.webscanLastCorners || null
-
-      });
+      // Corners detected at capture time pre-fill the manual crop
+      // handles. Null for gallery imports and already-cropped scans.
+      state.pages.push(
+        createPage(
+          data,
+          window.webscanLastCorners || null
+        )
+      );
 
 
       window.webscanLastCorners = null;
@@ -520,6 +503,48 @@ async function handleFiles(files) {
     );
 
   }
+
+}
+
+
+/*
+  Builds a page with the full non-destructive edit model.
+
+  `originalSrc` is written once here and never again, so the untouched
+  capture is always recoverable no matter how the page is later cropped
+  or adjusted.
+*/
+function createPage(data, corners = null) {
+
+  return {
+
+    id: Date.now() + Math.random(),
+
+    src: data,
+
+    originalSrc: data,
+
+    corners: corners,
+
+    originalCorners: corners
+      ? corners.map(p => ({ ...p }))
+      : null,
+
+    filter: "original",
+
+    brightness: 0,
+
+    contrast: 0,
+
+    sharpness: 0,
+
+    saturation: 0,
+
+    exposure: 0,
+
+    rotation: 0
+
+  };
 
 }
 
@@ -726,17 +751,7 @@ function openEditor(index = 0) {
     state.pages[state.currentPage];
 
 
-  state.filter =
-    page.filter || "original";
-
-  state.brightness =
-    page.brightness || 0;
-
-  state.contrast =
-    page.contrast || 0;
-
-  state.rotation =
-    page.rotation || 0;
+  loadPageIntoState(page);
 
 
   showScreen("editor");
@@ -746,7 +761,75 @@ function openEditor(index = 0) {
     `Page ${state.currentPage + 1} of ${state.pages.length}`;
 
 
+  // Seeds the history stack for this page on first open, so its
+  // untouched state is the baseline undo returns to.
+  window.WebScanHistory?.commit(page);
+
+  updateHistoryButtons();
+
+
   renderEditor();
+
+}
+
+
+/*
+  Copies a page's stored edits into the working state the editor
+  renders from. Missing values fall back to defaults so pages saved by
+  older versions still open correctly.
+*/
+function loadPageIntoState(page) {
+
+  state.filter =
+    page.filter || "original";
+
+  state.brightness =
+    page.brightness || 0;
+
+  state.contrast =
+    page.contrast || 0;
+
+  state.sharpness =
+    page.sharpness || 0;
+
+  state.saturation =
+    page.saturation || 0;
+
+  state.exposure =
+    page.exposure || 0;
+
+  state.rotation =
+    page.rotation || 0;
+
+}
+
+
+/*
+  Writes the working state back onto the page. Every adjustment goes
+  through here so nothing is stored in only one of the two places.
+*/
+function storeStateIntoPage(page) {
+
+  if (!page) {
+
+    return;
+
+  }
+
+
+  page.filter = state.filter;
+
+  page.brightness = state.brightness;
+
+  page.contrast = state.contrast;
+
+  page.sharpness = state.sharpness;
+
+  page.saturation = state.saturation;
+
+  page.exposure = state.exposure;
+
+  page.rotation = state.rotation;
 
 }
 
@@ -910,8 +993,11 @@ function enhanceSource(img) {
   }
 
 
-  // "original" keeps the untouched photo, so no work is needed.
-  if (state.filter === "original") {
+  // Nothing to do when the photo is untouched and unsharpened.
+  if (
+    state.filter === "original" &&
+    !state.sharpness
+  ) {
 
     return null;
 
@@ -922,8 +1008,10 @@ function enhanceSource(img) {
     state.pages[state.currentPage];
 
 
+  // Sharpness is part of the key because it changes pixels, unlike the
+  // brightness/contrast sliders which are applied as a cheap filter.
   const key =
-    `${page ? page.id : "none"}|${state.filter}`;
+    `${page ? page.id : "none"}|${state.filter}|${state.sharpness}|${page ? page.src.length : 0}`;
 
 
   if (
@@ -955,7 +1043,14 @@ function enhanceSource(img) {
         base,
         {
           mode: state.filter,
-          shadowRemoval: true
+
+          shadowRemoval: true,
+
+          // Slider is -100..100; only positive values sharpen. Mapped
+          // to 0..0.5, the range where sharpening still adds real edge
+          // detail before dark strokes begin to clip.
+          sharpness:
+            Math.max(0, state.sharpness) / 100 * 0.5
         }
       );
 
@@ -980,14 +1075,26 @@ function enhanceSource(img) {
 
 
 /*
-  Only the manual brightness/contrast sliders. Used when the enhancement
-  engine has already applied the mode, so the look is not doubled up.
+  Manual adjustments only. Used when the enhancement engine has already
+  applied the filter mode, so the look is not doubled up.
+
+  Exposure multiplies brightness rather than adding to it, matching how
+  camera exposure behaves: it scales light instead of shifting levels.
 */
 function buildSliderFilter() {
 
+  const exposureFactor =
+    1 + (state.exposure / 100) * 0.6;
+
+
+  const brightness =
+    (100 + state.brightness) * exposureFactor;
+
+
   return `
-    brightness(${100 + state.brightness}%)
+    brightness(${brightness.toFixed(1)}%)
     contrast(${100 + state.contrast}%)
+    saturate(${100 + state.saturation}%)
   `;
 
 }
@@ -995,11 +1102,23 @@ function buildSliderFilter() {
 
 function buildCanvasFilter() {
 
+  // Exposure scales brightness the way a camera does, so it stacks with
+  // the brightness slider instead of competing with it.
+  const exposureFactor =
+    1 + (state.exposure / 100) * 0.6;
+
+
   let brightness =
-    100 + state.brightness;
+    (100 + state.brightness) * exposureFactor;
 
   let contrast =
     100 + state.contrast;
+
+
+  // Appended to whichever preset is chosen below. Grayscale presets
+  // deliberately ignore it, since saturating a grey image does nothing.
+  const extra =
+    ` saturate(${100 + state.saturation}%)`;
 
 
   switch (state.filter) {
@@ -1036,7 +1155,7 @@ function buildCanvasFilter() {
       return `
         brightness(${Math.min(135, brightness + 8)}%)
         contrast(${Math.min(145, contrast + 15)}%)
-      `;
+      ` + extra;
 
 
     case "magic":
@@ -1044,7 +1163,7 @@ function buildCanvasFilter() {
       // Fallback only. The real Magic Color runs in the enhancement
       // engine; this keeps colours sensible if that is unavailable.
       return `
-        saturate(140%)
+        saturate(${140 + state.saturation}%)
         brightness(${Math.min(130, brightness + 6)}%)
         contrast(${Math.min(150, contrast + 20)}%)
       `;
@@ -1055,7 +1174,7 @@ function buildCanvasFilter() {
       return `
         brightness(${brightness}%)
         contrast(${contrast}%)
-      `;
+      ` + extra;
 
   }
 
@@ -1076,6 +1195,9 @@ function applyFilter(filter) {
 
   renderEditor();
 
+  // Each filter choice is one discrete undo step.
+  commitEditorHistory();
+
 }
 
 
@@ -1091,34 +1213,31 @@ function rotateImage() {
 
   renderEditor();
 
+  commitEditorHistory();
+
 }
 
 
 function resetEditor() {
 
-  state.filter = "original";
-
-  state.brightness = 0;
-
-  state.contrast = 0;
-
-  state.rotation = 0;
-
-
   const page =
     state.pages[state.currentPage];
 
 
-  page.filter = "original";
+  if (!page) {
 
-  page.brightness = 0;
+    return;
 
-  page.contrast = 0;
-
-  page.rotation = 0;
+  }
 
 
-  renderEditor();
+  // Restores the defaults AND the untouched capture, so a crop is
+  // undone too. Recorded as a step, so Reset itself can be undone.
+  window.WebScanHistory?.reset(page);
+
+
+  afterHistoryChange(page);
+
 
   showToast("Edits reset");
 
@@ -1158,10 +1277,103 @@ function saveEditorChanges() {
 
 
 /* =====================================================
+   EDIT HISTORY
+===================================================== */
+
+function commitEditorHistory() {
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  if (!page) {
+
+    return;
+
+  }
+
+
+  storeStateIntoPage(page);
+
+  window.WebScanHistory?.commit(page);
+
+  updateHistoryButtons();
+
+}
+
+
+function updateHistoryButtons() {
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  const history =
+    window.WebScanHistory;
+
+
+  $("undoBtn").disabled =
+    !history || !history.canUndo(page);
+
+
+  $("redoBtn").disabled =
+    !history || !history.canRedo(page);
+
+}
+
+
+/*
+  Applies a history step and refreshes everything that reflects it.
+  Used by undo, redo and reset so they cannot drift apart.
+*/
+function afterHistoryChange(page) {
+
+  loadPageIntoState(page);
+
+  enhanceCache = { key: null, canvas: null };
+
+  renderEditor();
+
+  updatePages();
+
+  updateHistoryButtons();
+
+}
+
+
+
+/* =====================================================
    SLIDER
 ===================================================== */
 
+// Every slider-driven adjustment, keyed by the button's data-tool.
+const ADJUST_TOOLS = {
+
+  brightness: { label: "Brightness" },
+
+  contrast: { label: "Contrast" },
+
+  exposure: { label: "Exposure" },
+
+  saturation: { label: "Saturation" },
+
+  sharpness: { label: "Sharpness" }
+
+};
+
+
 function activateAdjust(tool) {
+
+  const config =
+    ADJUST_TOOLS[tool];
+
+
+  if (!config) {
+
+    return;
+
+  }
+
 
   const box =
     $("adjustSliderBox");
@@ -1173,26 +1385,12 @@ function activateAdjust(tool) {
   box.classList.remove("hidden");
 
 
-  if (tool === "brightness") {
-
-    $("sliderLabel").textContent =
-      "Brightness";
-
-    slider.value =
-      state.brightness;
-
-  }
+  $("sliderLabel").textContent =
+    config.label;
 
 
-  if (tool === "contrast") {
-
-    $("sliderLabel").textContent =
-      "Contrast";
-
-    slider.value =
-      state.contrast;
-
-  }
+  slider.value =
+    state[tool];
 
 
   slider.dataset.tool =
@@ -1209,34 +1407,55 @@ $("adjustSlider").addEventListener(
   "input",
   () => {
 
+    const slider =
+      $("adjustSlider");
+
+
+    const tool =
+      slider.dataset.tool;
+
+
+    if (!ADJUST_TOOLS[tool]) {
+
+      return;
+
+    }
+
+
     const value =
-      Number(
-        $("adjustSlider").value
-      );
+      Number(slider.value);
 
 
     $("sliderValue").textContent =
       value;
 
 
-    if (
-      $("adjustSlider").dataset.tool ===
-      "brightness"
-    ) {
+    state[tool] = value;
 
-      state.brightness = value;
 
-    } else {
-
-      state.contrast = value;
-
-    }
+    storeStateIntoPage(
+      state.pages[state.currentPage]
+    );
 
 
     renderEditor();
 
   }
 );
+
+
+/*
+  History is recorded when the drag ends, not on every input event, so
+  one slider gesture becomes a single undo step instead of hundreds.
+*/
+["change", "pointerup", "touchend"].forEach(event => {
+
+  $("adjustSlider").addEventListener(
+    event,
+    commitEditorHistory
+  );
+
+});
 
 
 
@@ -1926,10 +2145,24 @@ async function exportDocument() {
     favorite:
       state.favorite,
 
+    /*
+      `originalSrc` exists so edits stay reversible during a session.
+      Once a document is saved the edits are final, so it is dropped
+      here — keeping it would double every document's storage cost
+      against a localStorage quota that is already limited.
+    */
     pages:
-      state.pages.map(page => ({
-        ...page
-      }))
+      state.pages.map(page => {
+
+        const copy = { ...page };
+
+        delete copy.originalSrc;
+
+        delete copy.originalCorners;
+
+        return copy;
+
+      })
 
   };
 
@@ -2539,6 +2772,48 @@ $("rotateBtn")
   );
 
 
+$("undoBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      const page =
+        state.pages[state.currentPage];
+
+
+      if (window.WebScanHistory?.undo(page)) {
+
+        afterHistoryChange(page);
+
+        showToast("Undone");
+
+      }
+
+    }
+  );
+
+
+$("redoBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      const page =
+        state.pages[state.currentPage];
+
+
+      if (window.WebScanHistory?.redo(page)) {
+
+        afterHistoryChange(page);
+
+        showToast("Redone");
+
+      }
+
+    }
+  );
+
+
 $("editorPagesBtn")
   .addEventListener(
     "click",
@@ -2594,6 +2869,8 @@ $("cropBtn")
 
         onApply: (canvas) => {
 
+          // Only `src` changes; `originalSrc` is left untouched so the
+          // untouched capture survives and Reset/undo can restore it.
           page.src =
             canvas.toDataURL(
               "image/jpeg",
@@ -2609,6 +2886,9 @@ $("cropBtn")
           // The page id is unchanged but its pixels are not, so the
           // cached enhancement must be dropped or a stale image shows.
           enhanceCache = { key: null, canvas: null };
+
+
+          window.WebScanHistory?.commit(page);
 
 
           renderEditor();
@@ -3070,6 +3350,8 @@ window.webscanPageAPI = {
 
       onApply: (canvas) => {
 
+        // originalSrc is deliberately not touched, keeping the crop
+        // reversible through undo and Reset.
         page.src =
           canvas.toDataURL(
             "image/jpeg",
@@ -3079,6 +3361,8 @@ window.webscanPageAPI = {
         page.corners = null;
 
         enhanceCache = { key: null, canvas: null };
+
+        window.WebScanHistory?.commit(page);
 
 
         window.WebScanPages?.refresh();

@@ -2373,3 +2373,30 @@ input {
   background: var(--surface-3);
   font-weight: 700;
 }
+
+
+/* =====================================================
+   EDITOR HISTORY CONTROLS
+===================================================== */
+
+.history-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 16px;
+}
+
+/* Disabled means there is nothing further to undo or redo. */
+.history-btn:disabled {
+  opacity: .34;
+  cursor: default;
+}
+
+.history-btn:disabled:active {
+  transform: none;
+}
