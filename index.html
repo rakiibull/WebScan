@@ -10,6 +10,18 @@
 
   <meta name="theme-color" content="#080b12">
 
+  <!-- iOS standalone behaviour. Without these the app opens in Safari
+       chrome when launched from the home screen, losing the full-height
+       camera view that viewport-fit=cover provides. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="black-translucent"
+  >
+
+  <meta name="apple-mobile-web-app-title" content="WebScan">
+
   <title>WebScan Pro</title>
 
   <link rel="stylesheet" href="style.css">

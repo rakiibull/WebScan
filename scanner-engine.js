@@ -56,6 +56,9 @@
   let frameId = 0;
   let pendingFrame = null;
 
+  // Region of the video the last detection frame was taken from.
+  let lastSourceRect = null;
+
   // Reused across frames to avoid per-frame canvas allocation.
   const previewCanvas = document.createElement("canvas");
   const previewCtx = previewCanvas.getContext(
@@ -914,9 +917,48 @@
     second a fresh canvas each time produces continuous garbage that
     shows up as periodic stutter on mobile.
   */
+  /*
+    The region of the video that is actually on screen.
+
+    `object-fit: cover` scales the stream to fill the view and crops the
+    overflow. On a portrait phone given a landscape stream this can hide
+    most of the frame width. Detecting across the whole frame would find
+    documents the user cannot see and draw the outline off-target, so
+    detection is limited to the visible rectangle.
+  */
+  function visibleVideoRect() {
+    const box = video.getBoundingClientRect();
+
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+
+    if (!vw || !vh || !box.width || !box.height) {
+      return { x: 0, y: 0, width: vw || 1, height: vh || 1 };
+    }
+
+    const scale = Math.max(box.width / vw, box.height / vh);
+
+    // Size of the on-screen box expressed in source pixels.
+    const visibleW = Math.min(vw, box.width / scale);
+    const visibleH = Math.min(vh, box.height / scale);
+
+    return {
+      x: (vw - visibleW) / 2,
+      y: (vh - visibleH) / 2,
+      width: visibleW,
+      height: visibleH
+    };
+  }
+
   function capturePreviewFrame() {
+    const source = visibleVideoRect();
+
+    // Remembered so detected corners can be mapped back into full-frame
+    // coordinates, which is the space the overlay works in.
+    lastSourceRect = source;
+
     const targetW = detectionWidth;
-    const ratio = video.videoHeight / video.videoWidth;
+    const ratio = source.height / source.width;
 
     const width = targetW;
     const height = Math.max(1, Math.round(targetW * ratio));
@@ -926,7 +968,11 @@
       previewCanvas.height = height;
     }
 
-    previewCtx.drawImage(video, 0, 0, width, height);
+    previewCtx.drawImage(
+      video,
+      source.x, source.y, source.width, source.height,
+      0, 0, width, height
+    );
 
     return previewCanvas;
   }
@@ -936,12 +982,24 @@
     if (corners) {
       missStreak = 0;
 
-      const sx = video.videoWidth / frameW;
-      const sy = video.videoHeight / frameH;
+      /*
+        Detection ran on the visible crop, so results are scaled by that
+        region and shifted by its offset to land in full-frame
+        coordinates, which is what the overlay and capture both use.
+      */
+      const source = lastSourceRect || {
+        x: 0,
+        y: 0,
+        width: video.videoWidth,
+        height: video.videoHeight
+      };
+
+      const sx = source.width / frameW;
+      const sy = source.height / frameH;
 
       const inVideoSpace = corners.map(p => ({
-        x: p.x * sx,
-        y: p.y * sy
+        x: source.x + p.x * sx,
+        y: source.y + p.y * sy
       }));
 
       showCorners(smoothCorners(inVideoSpace));
@@ -1418,9 +1476,31 @@
     sheet.classList.remove("show");
   });
 
-  window.addEventListener("resize", () => {
-    hideCorners();
-  });
+  /*
+    Rotating or resizing changes the visible crop, so any tracked
+    outline describes a layout that no longer exists. Clearing the whole
+    tracking state avoids a stale quadrilateral sliding across the new
+    view, and lets stability build up again from the new geometry.
+  */
+  let layoutTimer = null;
+
+  function onLayoutChange() {
+    lastSourceRect = null;
+    resetTracking();
+
+    clearTimeout(layoutTimer);
+
+    layoutTimer = setTimeout(() => {
+      // Re-measure once the browser has settled on the new size.
+      if (detectTimer) {
+        detectLive();
+      }
+    }, 300);
+  }
+
+  window.addEventListener("resize", onLayoutChange);
+
+  window.addEventListener("orientationchange", onLayoutChange);
 
   function onOpenCVReady() {
     if (cvReady) return;

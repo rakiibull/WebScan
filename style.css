@@ -2588,3 +2588,102 @@ input {
   border: 1px solid var(--accent);
   color: var(--accent);
 }
+
+
+/* =====================================================
+   MOBILE / CROSS-BROWSER
+===================================================== */
+
+/*
+  iOS Safari zooms the page when a focused input has a font smaller
+  than 16px, which shifts the layout and traps the user at the wrong
+  scale. 16px keeps focus behaviour stable; the visual size is tuned
+  back with padding rather than font-size.
+*/
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Momentum scrolling on iOS for the scrollable regions. */
+.documents-list,
+.pages-manager,
+.editor-main,
+.export-main {
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+  Landscape phones have very little vertical room. The camera chrome is
+  compacted so the preview keeps most of the screen.
+*/
+@media (max-height: 500px) and (orientation: landscape) {
+
+  #cameraScreen.ws-pro-camera .camera-toolbar {
+    height: 74px;
+    padding: 4px 18px 8px;
+  }
+
+  #cameraScreen.ws-pro-camera .capture-btn {
+    width: 54px;
+    height: 54px;
+    min-width: 54px;
+  }
+
+  .ws-mode-bar {
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    gap: 16px;
+  }
+
+  .ws-mode {
+    font-size: 11px;
+  }
+
+  /* The status pill would otherwise overlap the header controls. */
+  .ws-live-status {
+    top: calc(max(6px, env(safe-area-inset-top)) + 46px);
+    padding: 5px 10px;
+  }
+
+  #cameraScreen.ws-pro-camera .scan-hint {
+    display: none;
+  }
+}
+
+/*
+  Tablets and desktop: the app is phone-shaped, so content is centred
+  and capped instead of stretching across a wide screen.
+*/
+@media (min-width: 820px) {
+
+  .documents-toolbar,
+  .documents-list,
+  .pages-manager,
+  .export-main,
+  .settings-list {
+    width: min(100%, 760px);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .editor-preview {
+    max-height: 62vh;
+  }
+}
+
+/*
+  Pointer-based devices (desktop, iPad with trackpad) get hover states;
+  touch devices skip them so a tap does not leave a stuck highlight.
+*/
+@media (hover: hover) and (pointer: fine) {
+
+  .document-card:hover,
+  .page-card:hover {
+    border-color: var(--accent);
+  }
+
+  .folder-chip:hover:not(.active) {
+    color: var(--text);
+  }
+}

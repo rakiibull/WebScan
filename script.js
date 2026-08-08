@@ -306,6 +306,20 @@ function goSettings() {
    CAMERA
 ===================================================== */
 
+/*
+  True when the viewport is taller than it is wide.
+
+  The camera view fills the screen, so the viewport is what the stream
+  has to match. Screen orientation APIs differ across iOS, Android and
+  desktop; comparing the actual box works the same everywhere.
+*/
+function isPortraitViewport() {
+
+  return window.innerHeight >= window.innerWidth;
+
+}
+
+
 async function startCamera() {
 
   stopCamera();
@@ -329,6 +343,26 @@ async function startCamera() {
     }
 
 
+    /*
+      Resolution is requested in the orientation the screen is actually
+      in.
+
+      Asking for a fixed 1920x1080 on a portrait phone made browsers
+      hand back a landscape stream, which `object-fit: cover` then
+      cropped hard -- measured at 75% of the frame width discarded on
+      Android Chrome. The document was still detected in the full frame,
+      so the outline could sit on parts of the page the user could not
+      even see.
+    */
+    const portrait =
+      isPortraitViewport();
+
+
+    const longEdge = 1920;
+
+    const shortEdge = 1080;
+
+
     const constraints = {
 
       audio: false,
@@ -340,11 +374,19 @@ async function startCamera() {
         },
 
         width: {
-          ideal: 1920
+          ideal: portrait ? shortEdge : longEdge
         },
 
         height: {
-          ideal: 1080
+          ideal: portrait ? longEdge : shortEdge
+        },
+
+        // A hint only; browsers that ignore it still get a usable
+        // stream from the width/height above.
+        aspectRatio: {
+          ideal: portrait
+            ? shortEdge / longEdge
+            : longEdge / shortEdge
         }
       }
 
@@ -402,6 +444,109 @@ function stopCamera() {
   video.srcObject = null;
 
 }
+
+
+/*
+  Rotating the device changes which resolution the camera should deliver,
+  so the stream is restarted to match. Without this the preview keeps the
+  previous orientation and gets heavily cropped after a rotate.
+
+  Only runs while the camera screen is actually visible, and is debounced
+  because browsers fire several resize events during a rotation.
+*/
+let orientationTimer = null;
+
+let lastOrientationPortrait = null;
+
+
+function handleOrientationChange() {
+
+  if (!screens.camera.classList.contains("active")) {
+
+    return;
+
+  }
+
+
+  const portrait =
+    isPortraitViewport();
+
+
+  // A resize that does not flip orientation (keyboard, URL bar) must not
+  // tear down a working camera.
+  if (portrait === lastOrientationPortrait) {
+
+    return;
+
+  }
+
+
+  lastOrientationPortrait = portrait;
+
+
+  clearTimeout(orientationTimer);
+
+  orientationTimer = setTimeout(
+    () => {
+
+      if (!screens.camera.classList.contains("active")) {
+
+        return;
+
+      }
+
+
+      startCamera();
+
+    },
+    350
+  );
+
+}
+
+
+window.addEventListener(
+  "orientationchange",
+  handleOrientationChange
+);
+
+window.addEventListener(
+  "resize",
+  handleOrientationChange
+);
+
+
+/*
+  iOS Safari can suspend a camera stream when the tab is backgrounded or
+  the device is locked; it does not resume on its own. Restarting on
+  return avoids the black preview this otherwise leaves behind.
+*/
+document.addEventListener(
+  "visibilitychange",
+  () => {
+
+    if (
+      document.hidden ||
+      !screens.camera.classList.contains("active")
+    ) {
+
+      return;
+
+    }
+
+
+    const track =
+      state.stream?.getVideoTracks?.()[0];
+
+
+    if (!track || track.readyState === "ended") {
+
+      startCamera();
+
+    }
+
+  }
+);
 
 
 
