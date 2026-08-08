@@ -42,6 +42,145 @@
   let lastQuality = null;
   let captureReady = false;
 
+  /* =========================================================
+     PERFORMANCE
+
+     Detection is the most expensive thing the app does per
+     frame. It is moved to a worker where possible, and its
+     cadence adapts to how long frames actually take, so a slow
+     phone simply detects less often instead of stuttering.
+     ========================================================= */
+
+  let worker = null;
+  let workerReady = false;
+  let frameId = 0;
+  let pendingFrame = null;
+
+  // Reused across frames to avoid per-frame canvas allocation.
+  const previewCanvas = document.createElement("canvas");
+  const previewCtx = previewCanvas.getContext(
+    "2d",
+    { willReadFrequently: true }
+  );
+
+  /*
+    Preview width used for detection.
+
+    Smaller frames are dramatically cheaper (cost scales with pixel
+    count) while still resolving page edges. This starts moderate and
+    drops on devices that prove slow.
+  */
+  let detectionWidth = 640;
+
+  // Rolling average of recent frame cost, in milliseconds.
+  let averageCost = 0;
+
+  let detectInterval = 450;
+
+  const MIN_INTERVAL = 250;
+  const MAX_INTERVAL = 1200;
+
+  function recordFrameCost(elapsed) {
+    if (!Number.isFinite(elapsed) || elapsed <= 0) return;
+
+    // Exponential moving average: reacts quickly without being jumpy.
+    averageCost = averageCost
+      ? averageCost * 0.7 + elapsed * 0.3
+      : elapsed;
+
+    adaptPacing();
+  }
+
+  /*
+    Keeps detection using roughly half the available time, so the device
+    always has room for rendering and touch input. Without this a slow
+    phone would spend every millisecond detecting and feel frozen.
+  */
+  function adaptPacing() {
+    const target = Math.round(averageCost * 2);
+
+    const next = Math.max(
+      MIN_INTERVAL,
+      Math.min(MAX_INTERVAL, target)
+    );
+
+    if (Math.abs(next - detectInterval) < 60) return;
+
+    detectInterval = next;
+
+    // Drop resolution when even a relaxed cadence cannot keep up; this
+    // is the difference between a usable and an unusable low-end device.
+    if (averageCost > 260 && detectionWidth > 400) {
+      detectionWidth = 480;
+    } else if (averageCost < 70 && detectionWidth < 640) {
+      detectionWidth = 640;
+    }
+
+    if (detectTimer) {
+      clearInterval(detectTimer);
+      detectTimer = setInterval(detectLive, detectInterval);
+    }
+  }
+
+  function setupWorker() {
+    if (typeof Worker === "undefined") return;
+
+    try {
+      worker = new Worker("detect-worker.js");
+    } catch (error) {
+      console.warn("Detection worker unavailable:", error);
+      worker = null;
+      return;
+    }
+
+    worker.onmessage = (event) => {
+      const data = event.data;
+
+      if (data.type === "ready") {
+        workerReady = true;
+        cvReady = true;
+        setStatus("Auto scan ready", "ready");
+        startLiveDetection();
+        return;
+      }
+
+      if (data.type === "failed") {
+        // Fall back to the main-thread path rather than losing detection.
+        console.warn("Worker OpenCV failed:", data.message);
+        worker.terminate();
+        worker = null;
+        workerReady = false;
+        waitForOpenCV();
+        return;
+      }
+
+      if (data.type === "result") {
+        const frame = pendingFrame;
+        pendingFrame = null;
+        detecting = false;
+
+        recordFrameCost(data.elapsed);
+
+        if (frame) {
+          handleDetection(
+            data.corners,
+            data.quality,
+            frame.width,
+            frame.height
+          );
+        }
+      }
+    };
+
+    worker.onerror = (error) => {
+      console.warn("Detection worker error:", error.message);
+      worker = null;
+      workerReady = false;
+      detecting = false;
+      waitForOpenCV();
+    };
+  }
+
   // Weight of each new measurement. Lower is steadier but slower.
   const SMOOTHING = 0.35;
 
@@ -768,81 +907,132 @@
     cameraScreen.querySelector(".scan-frame")?.classList.remove("ws-detected");
   }
 
+  /*
+    Grabs the current video frame into the reusable preview canvas.
+
+    The canvas is allocated once instead of per frame: at two frames a
+    second a fresh canvas each time produces continuous garbage that
+    shows up as periodic stutter on mobile.
+  */
+  function capturePreviewFrame() {
+    const targetW = detectionWidth;
+    const ratio = video.videoHeight / video.videoWidth;
+
+    const width = targetW;
+    const height = Math.max(1, Math.round(targetW * ratio));
+
+    if (previewCanvas.width !== width || previewCanvas.height !== height) {
+      previewCanvas.width = width;
+      previewCanvas.height = height;
+    }
+
+    previewCtx.drawImage(video, 0, 0, width, height);
+
+    return previewCanvas;
+  }
+
+  /* Applies a detection result, whether it came from the worker or not. */
+  function handleDetection(corners, quality, frameW, frameH) {
+    if (corners) {
+      missStreak = 0;
+
+      const sx = video.videoWidth / frameW;
+      const sy = video.videoHeight / frameH;
+
+      const inVideoSpace = corners.map(p => ({
+        x: p.x * sx,
+        y: p.y * sy
+      }));
+
+      showCorners(smoothCorners(inVideoSpace));
+      trackStability(inVideoSpace);
+
+      lastQuality = quality;
+
+      const readiness = evaluateCaptureReadiness(
+        corners,
+        quality,
+        frameW,
+        frameH
+      );
+
+      // The outline must also have stopped moving. Both conditions are
+      // required before the tick — and auto capture — are allowed.
+      const settled = stableSince !== null &&
+        Date.now() - stableSince >= STABLE_CONFIRM_MS;
+
+      captureReady = readiness.ok && settled;
+
+      if (!readiness.ok) {
+        setStatus(readiness.message, "warn");
+      } else {
+        setStatus(settled ? readiness.message : "Hold steady…", "ready");
+      }
+
+      liveOverlay.classList.toggle("ws-quad-ready", captureReady);
+
+      maybeAutoCapture();
+    } else {
+      missStreak++;
+
+      // Tolerate brief detection dropouts instead of flickering off.
+      if (missStreak > MAX_MISSES) {
+        hideCorners();
+        smoothedCorners = null;
+        stableSince = null;
+        captureReady = false;
+        lastQuality = null;
+        setStatus("Looking for document…");
+      }
+    }
+  }
+
   function detectLive() {
     if (detecting || !video.videoWidth || video.readyState < 2) return;
+
     detecting = true;
 
     try {
-      const c = document.createElement("canvas");
-      const targetW = 640;
-      const ratio = video.videoHeight / video.videoWidth;
-      c.width = targetW;
-      c.height = Math.round(targetW * ratio);
-      const ctx = c.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(video, 0, 0, c.width, c.height);
+      const frame = capturePreviewFrame();
 
-      const corners = findDocumentCorners(c);
+      if (worker && workerReady) {
+        /*
+          The pixel buffer is transferred rather than copied, so a large
+          preview frame costs nothing to hand over.
+        */
+        const imageData =
+          previewCtx.getImageData(0, 0, frame.width, frame.height);
 
-      if (corners) {
-        missStreak = 0;
+        pendingFrame = { width: frame.width, height: frame.height };
 
-        const sx = video.videoWidth / c.width;
-        const sy = video.videoHeight / c.height;
-
-        const inVideoSpace = corners.map(p => ({
-          x: p.x * sx,
-          y: p.y * sy
-        }));
-
-        showCorners(smoothCorners(inVideoSpace));
-        trackStability(inVideoSpace);
-
-        // Quality is measured on the same downscaled preview frame that
-        // detection used, so this adds no extra capture cost.
-        lastQuality = measurePreviewQuality(c);
-
-        const readiness = evaluateCaptureReadiness(
-          corners,
-          lastQuality,
-          c.width,
-          c.height
+        worker.postMessage(
+          { type: "detect", id: ++frameId, imageData },
+          [imageData.data.buffer]
         );
 
-        // The outline must also have stopped moving. Both conditions are
-        // required before the tick — and auto capture — are allowed.
-        const settled = stableSince !== null &&
-          Date.now() - stableSince >= STABLE_CONFIRM_MS;
-
-        captureReady = readiness.ok && settled;
-
-        if (!readiness.ok) {
-          setStatus(readiness.message, "warn");
-        } else {
-          setStatus(settled ? readiness.message : "Hold steady…", "ready");
-        }
-
-        liveOverlay.classList.toggle("ws-quad-ready", captureReady);
-
-        maybeAutoCapture();
-      } else {
-        missStreak++;
-
-        // Tolerate brief detection dropouts instead of flickering off.
-        if (missStreak > MAX_MISSES) {
-          hideCorners();
-          smoothedCorners = null;
-          stableSince = null;
-          captureReady = false;
-          lastQuality = null;
-          setStatus("Looking for document…");
-        }
+        // `detecting` stays true until the worker replies, which keeps
+        // only one frame in flight and prevents a backlog.
+        return;
       }
-    } catch (e) {
+
+      // Fallback: no worker available, run inline as before.
+      const started = Date.now();
+
+      const corners = findDocumentCorners(frame);
+      const quality = measurePreviewQuality(frame);
+
+      recordFrameCost(Date.now() - started);
+
+      handleDetection(corners, quality, frame.width, frame.height);
+    } catch (error) {
       setStatus("Ready to scan");
       stableSince = null;
       captureReady = false;
     } finally {
-      detecting = false;
+      // The worker path returns early and clears this in its callback.
+      if (!worker || !workerReady) {
+        detecting = false;
+      }
     }
   }
 
@@ -908,6 +1098,12 @@
     stabilityReference = null;
     stableSince = null;
     missStreak = 0;
+
+    // A frame may still be in flight; its result must not be applied to
+    // the next session, and `detecting` must not stay stuck true.
+    pendingFrame = null;
+    detecting = false;
+
     hideCorners();
   }
 
@@ -918,7 +1114,7 @@
     // never carried over when the camera reopens.
     resetTracking();
 
-    detectTimer = setInterval(detectLive, 450);
+    detectTimer = setInterval(detectLive, detectInterval);
   }
 
   function stopLiveDetection() {
@@ -1252,7 +1448,16 @@
     setStatus("Auto detection unavailable — tap to capture", "error");
   });
 
-  waitForOpenCV();
+  /*
+    The worker is preferred because it keeps the ~90ms detection pass off
+    the main thread. Its own OpenCV copy loads in parallel; if the worker
+    cannot start, the main-thread path takes over automatically.
+  */
+  setupWorker();
+
+  if (!worker) {
+    waitForOpenCV();
+  }
 
   // If the camera starts after this engine loads, detection resumes as
   // soon as video dimensions are available — but only once OpenCV is up,
