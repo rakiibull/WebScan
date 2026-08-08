@@ -28,6 +28,10 @@
   let mode = "Scan";
   let autoCrop = true;
   let detectTimer = null;
+  let stableSince = null;
+  let autoCapturing = false;
+
+  const AUTO_CAPTURE_HOLD_MS = 900;
 
   const liveOverlay = document.createElement("div");
   liveOverlay.className = "ws-live-corners";
@@ -292,15 +296,43 @@
         const sy = video.videoHeight / c.height;
         showCorners(corners.map(p => ({ x: p.x * sx, y: p.y * sy })));
         setStatus("Document detected", "ready");
+        maybeAutoCapture();
       } else {
         hideCorners();
         setStatus("Looking for document…");
+        stableSince = null;
       }
     } catch (e) {
       setStatus("Ready to scan");
+      stableSince = null;
     } finally {
       detecting = false;
     }
+  }
+
+  function maybeAutoCapture() {
+    if (!window.webscanAutoCapture || autoCapturing) {
+      stableSince = null;
+      return;
+    }
+
+    if (stableSince === null) {
+      stableSince = Date.now();
+      return;
+    }
+
+    if (Date.now() - stableSince < AUTO_CAPTURE_HOLD_MS) {
+      return;
+    }
+
+    stableSince = null;
+    autoCapturing = true;
+
+    captureBtn.click();
+
+    setTimeout(() => {
+      autoCapturing = false;
+    }, 2000);
   }
 
   function startLiveDetection() {

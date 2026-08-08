@@ -2542,6 +2542,8 @@ function applyPreferences() {
 
     });
 
+  window.webscanAutoCapture = state.autoCapture;
+
   $("darkModeToggle")
     .querySelector(".toggle")
     .classList.toggle(
