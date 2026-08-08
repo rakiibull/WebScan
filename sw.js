@@ -4,7 +4,7 @@
   The cache name is versioned so that changing this list actually ships:
   without a new name the browser keeps serving the old bundle forever.
 */
-const CACHE = "webscan-store-v2";
+const CACHE = "webscan-store-v3";
 
 /*
   Every local file the app needs to run offline. This list fell behind
@@ -16,6 +16,7 @@ const ASSETS = [
   "./index.html",
   "./style.css",
   "./scanner-engine.css",
+  "./messages.js",
   "./script.js",
   "./scanner-engine.js",
   "./enhance-engine.js",

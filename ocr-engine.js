@@ -148,7 +148,7 @@
         document.getElementById("wsOCRStatus").textContent = "Text copied";
       } catch {
         document.getElementById("wsOCRStatus").textContent =
-          "Copy failed — select the text manually.";
+          "Could not copy automatically. Select the text and copy it.";
       }
     };
 
@@ -204,7 +204,11 @@
     textBox.value = "";
 
     try {
-      setOCRStatus("Loading OCR engine…", 5);
+      setOCRStatus(
+        window.WebScanMessages?.PROGRESS?.loadingOcr ||
+          "Loading the text engine…",
+        5
+      );
       const Tesseract = await loadTesseract();
 
       setOCRStatus("Preparing document…", 10);
@@ -232,14 +236,29 @@
       if (text) {
         setOCRStatus("OCR completed", 100);
       } else {
-        setOCRStatus("No readable text was detected.", 100);
+        setOCRStatus(
+          window.WebScanMessages?.NOTICE?.ocrEmpty ||
+            "No readable text was found on this page.",
+          100
+        );
       }
 
       return text;
     } catch (error) {
       console.error("OCR error:", error);
+      /*
+        Distinguishes a failed download of the recognition engine from a
+        failure while reading the page, because the remedies differ.
+      */
+      const offline =
+        !navigator.onLine ||
+        /load|network|fetch|script/i.test(String(error?.message || ""));
+
       setOCRStatus(
-        "OCR failed. Check your internet connection and try again.",
+        offline
+          ? (window.WebScanMessages?.NOTICE?.ocrFailed ||
+              "Text could not be read. Check your connection and try again.")
+          : "The page could not be read. Try a clearer or better-lit scan.",
         0
       );
       return "";

@@ -22,6 +22,37 @@
 
   cameraScreen.classList.add("ws-pro-camera");
 
+  /*
+    Reads a message from the shared wording module.
+
+    The fallback keeps the scanner working if messages.js fails to load,
+    rather than showing "undefined" over the camera preview.
+  */
+  function msg(key, fallback) {
+    return window.WebScanMessages?.SCAN?.[key] || fallback;
+  }
+
+  function progressMsg(key, fallback) {
+    return window.WebScanMessages?.PROGRESS?.[key] || fallback;
+  }
+
+  function noticeMsg(key, fallback) {
+    return window.WebScanMessages?.NOTICE?.[key] || fallback;
+  }
+
+  /*
+    Updates the overlay shown while a capture is being processed.
+    Naming the current stage makes a multi-second wait feel accounted
+    for instead of looking like the app has hung.
+  */
+  function setProgress(title, detail) {
+    const titleEl = document.getElementById("wsProcessingTitle");
+    const subEl = document.getElementById("wsProcessingSub");
+
+    if (titleEl && title) titleEl.textContent = title;
+    if (subEl && detail) subEl.textContent = detail;
+  }
+
   let cvReady = false;
   let detecting = false;
   let lastCorners = null;
@@ -279,14 +310,14 @@
   */
   function evaluateCaptureReadiness(corners, quality, frameW, frameH) {
     if (!corners) {
-      return { ok: false, message: "Looking for document…" };
+      return { ok: false, message: msg("searching", "Place the document inside the frame.") };
     }
 
     const frameArea = frameW * frameH;
     const areaRatio = polygonArea(corners) / frameArea;
 
     if (areaRatio < MIN_DOC_AREA_RATIO) {
-      return { ok: false, message: "Move closer to the document" };
+      return { ok: false, message: msg("tooFar", "Move closer to the document.") };
     }
 
     // A corner touching the frame edge means part of the page is very
@@ -302,7 +333,7 @@
     );
 
     if (clipped) {
-      return { ok: false, message: "Fit the whole document in frame" };
+      return { ok: false, message: msg("partiallyOutside", "Fit the whole document in the frame.") };
     }
 
     const [tl, tr, br, bl] = corners;
@@ -316,28 +347,28 @@
     const worstTilt = Math.max(...angles.map(a => Math.abs(90 - a)));
 
     if (worstTilt > MAX_TILT_DEGREES) {
-      return { ok: false, message: "Hold the camera flat above the page" };
+      return { ok: false, message: msg("tilted", "Hold your device flat above the page.") };
     }
 
     if (quality) {
       if (quality.brightness < DARK_MEAN_MAX) {
-        return { ok: false, message: "Too dark — add more light" };
+        return { ok: false, message: msg("tooDark", "Increase lighting for a clearer scan.") };
       }
 
       if (quality.brightness > BRIGHT_MEAN_MIN) {
-        return { ok: false, message: "Too bright — reduce the light" };
+        return { ok: false, message: msg("tooBright", "Reduce the lighting.") };
       }
 
       if (quality.glareRatio > GLARE_RATIO_MAX) {
-        return { ok: false, message: "Glare detected — tilt away from the light" };
+        return { ok: false, message: msg("glare", "Glare detected — tilt away from the light.") };
       }
 
       if (quality.sharpness < BLUR_VARIANCE_MIN) {
-        return { ok: false, message: "Hold steady — image is blurry" };
+        return { ok: false, message: msg("blurry", "Hold your device steady.") };
       }
     }
 
-    return { ok: true, message: "Document detected ✓" };
+    return { ok: true, message: msg("detected", "Document detected ✓") };
   }
 
   // How long the outline must stay still before it is confirmed.
@@ -437,8 +468,8 @@
   processing.innerHTML = `
     <div class="ws-processing-card">
       <div class="ws-processing-spinner"></div>
-      <div class="ws-processing-title">Scanning document</div>
-      <div class="ws-processing-sub">Detecting edges and correcting perspective…</div>
+      <div class="ws-processing-title" id="wsProcessingTitle">Scanning document</div>
+      <div class="ws-processing-sub" id="wsProcessingSub">Detecting edges and correcting perspective…</div>
     </div>
   `;
   cameraScreen.querySelector(".camera-view")?.appendChild(processing);
@@ -1024,7 +1055,7 @@
       if (!readiness.ok) {
         setStatus(readiness.message, "warn");
       } else {
-        setStatus(settled ? readiness.message : "Hold steady…", "ready");
+        setStatus(settled ? readiness.message : msg("holdSteady", "Hold your device steady."), "ready");
       }
 
       liveOverlay.classList.toggle("ws-quad-ready", captureReady);
@@ -1040,7 +1071,7 @@
         stableSince = null;
         captureReady = false;
         lastQuality = null;
-        setStatus("Looking for document…");
+        setStatus(msg("searching", "Place the document inside the frame."));
       }
     }
   }
@@ -1266,7 +1297,7 @@
       try {
         canvas.toBlob(blob => {
           if (!blob) {
-            reject(new Error("Could not create scan image."));
+            reject(new Error(noticeMsg("scanFailed", "The scan could not be processed. Try capturing again.")));
             return;
           }
 
@@ -1309,7 +1340,7 @@
     event.stopImmediatePropagation();
 
     if (!video.videoWidth) {
-      setStatus("Camera is not ready", "error");
+      setStatus(msg("cameraNotReady", "Camera is still starting…"), "error");
       return;
     }
 
@@ -1321,18 +1352,40 @@
     await new Promise(r => setTimeout(r, 40));
 
     try {
+      setProgress(
+        "Scanning document",
+        progressMsg("capturing", "Capturing…")
+      );
+
       const raw = makeCaptureCanvas();
 
       let corners = lastCorners;
 
       // Run a fresh detection on the full-resolution capture.
       if (autoCrop && cvReady) {
+        setProgress(
+          "Scanning document",
+          progressMsg(
+            "detectingEdges",
+            "Detecting edges and correcting perspective…"
+          )
+        );
+
+        // Yields so the message paints before the blocking work starts;
+        // otherwise the user sees the previous stage for the whole time.
+        await new Promise(r => setTimeout(r, 0));
+
         const fresh = findDocumentCorners(raw);
         if (fresh) corners = fresh;
       }
 
       const cropped = autoCrop && corners;
       const result = cropped ? warpPerspective(raw, corners) : raw;
+
+      setProgress(
+        "Scanning document",
+        progressMsg("enhancing", "Enhancing your scan…")
+      );
 
       /*
         When the image was NOT auto-cropped it still matches the detected
@@ -1353,13 +1406,27 @@
       // "To Word" mode automatically runs OCR after the corrected scan.
       // The OCR engine is loaded only when this mode is used.
       if ((mode === "To Word" || mode === "Text") && window.WebScanOCR) {
-        setStatus("Reading document text…");
-        await window.WebScanOCR.run(result, "eng+ben");
-        setStatus("OCR completed", "ready");
+        setStatus(progressMsg("readingText", "Reading document text…"));
+
+        setProgress(
+          "Reading text",
+          progressMsg("loadingOcr", "Loading the text engine…")
+        );
+
+        await window.WebScanOCR.run(result, "eng+ben", null);
+
+        setStatus("Text recognised", "ready");
       }
     } catch (error) {
       console.error(error);
-      setStatus("Scan failed — try again", "error");
+
+      setStatus(
+        noticeMsg(
+          "scanFailed",
+          "The scan could not be processed. Try capturing again."
+        ),
+        "error"
+      );
     } finally {
       processing.classList.remove("show");
     }
@@ -1525,7 +1592,7 @@
   window.addEventListener("webscan-opencv-ready", onOpenCVReady);
 
   window.addEventListener("webscan-opencv-failed", () => {
-    setStatus("Auto detection unavailable — tap to capture", "error");
+    setStatus(msg("detectionUnavailable", "Automatic detection is unavailable. Tap the shutter to capture."), "error");
   });
 
   /*

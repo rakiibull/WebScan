@@ -2687,3 +2687,33 @@ textarea {
     color: var(--text);
   }
 }
+
+
+/* =====================================================
+   ERROR + BUSY STATES
+===================================================== */
+
+/* Secondary action in the camera error panel: importing still works
+   when the camera itself cannot be used. */
+.import-instead-btn {
+  margin-top: 10px;
+  padding: 11px 18px;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* A busy action must look unavailable and not respond to taps. */
+.primary-wide-btn.is-busy,
+button:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.primary-wide-btn.is-busy:active,
+button:disabled:active {
+  transform: none;
+}

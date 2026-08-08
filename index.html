@@ -299,14 +299,25 @@
       >
         <div class="error-icon">!</div>
 
-        <strong>Camera unavailable</strong>
+        <strong id="cameraErrorTitle">
+          Camera unavailable
+        </strong>
 
-        <span>
-          Please allow camera permission and try again.
+        <span id="cameraErrorDetail">
+          The camera could not be started.
         </span>
 
         <button id="retryCameraBtn">
           Try Again
+        </button>
+
+        <!-- Always available: scanning can continue from the gallery
+             even when the camera cannot be used at all. -->
+        <button
+          id="importInsteadBtn"
+          class="import-instead-btn"
+        >
+          Import a photo instead
         </button>
       </div>
 
@@ -1297,6 +1308,10 @@
 
 </div>
 
+
+    <!-- Shared user-facing wording. Loaded before everything else so
+         every module can read the same messages. -->
+    <script src="messages.js"></script>
 
     <!-- Non-destructive edit history (undo / redo / reset) -->
     <script src="editor-history.js"></script>

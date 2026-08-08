@@ -197,7 +197,7 @@ function saveDocuments() {
     console.error(error);
 
     showToast(
-      "Storage is full",
+      window.WebScanMessages?.NOTICE?.storageFull || "Not enough space to save. Delete old documents and try again.",
       "!"
     );
   }
@@ -415,14 +415,48 @@ async function startCamera() {
 
     console.error(error);
 
+
+    /*
+      The cause decides what the user is told. Permission, a busy
+      camera and a missing camera all need different actions, so the
+      previous single "Camera unavailable" message left most users with
+      no idea what to do.
+    */
+    const info =
+      window.WebScanMessages
+        ? window.WebScanMessages.cameraError(error)
+        : {
+            title: "Camera unavailable",
+            detail: "The camera could not be started.",
+            retry: true
+          };
+
+
     $("cameraLoading")
       .classList.add("hidden");
+
+
+    $("cameraErrorTitle").textContent =
+      info.title;
+
+    $("cameraErrorDetail").textContent =
+      info.detail;
+
+
+    // Retrying a missing camera would only fail again, so the button is
+    // hidden and importing is offered instead.
+    $("retryCameraBtn").classList.toggle(
+      "hidden",
+      !info.retry
+    );
+
 
     $("cameraError")
       .classList.remove("hidden");
 
+
     $("cameraStatusText").textContent =
-      "Camera unavailable";
+      info.title;
 
   }
 
@@ -941,7 +975,7 @@ function openEditor(index = 0) {
   if (!state.pages.length) {
 
     showToast(
-      "Capture a page first",
+      window.WebScanMessages?.NOTICE?.noPages || "Capture or import a page first.",
       "!"
     );
 
@@ -3004,7 +3038,7 @@ async function exportDocument() {
   if (!state.pages.length) {
 
     showToast(
-      "No pages to export",
+      window.WebScanMessages?.NOTICE?.exportEmpty || "Add at least one page before exporting.",
       "!"
     );
 
@@ -3066,6 +3100,18 @@ async function exportDocument() {
 
   try {
 
+    /*
+      Exporting re-renders every page and can take seconds on a long
+      document. The button is disabled and labelled so the wait is
+      visibly accounted for and cannot be triggered twice.
+    */
+    setExportBusy(
+      true,
+      window.WebScanMessages?.PROGRESS?.exporting ||
+        "Saving your document…"
+    );
+
+
     if (
       state.exportFormat === "jpg"
     ) {
@@ -3100,12 +3146,77 @@ async function exportDocument() {
 
     console.error(error);
 
+
+    /*
+      Running out of memory is the usual cause on a phone with many
+      high-resolution pages, so the message points at the settings that
+      actually help rather than just reporting failure.
+    */
+    const outOfMemory =
+      error &&
+      /quota|memory|allocation|exceeded/i.test(
+        String(error.message || error.name || "")
+      );
+
+
     showToast(
-      "Export failed",
+      outOfMemory
+        ? (window.WebScanMessages?.NOTICE?.exportFailed ||
+            "Could not create the file. Try a smaller page size or fewer pages.")
+        : (window.WebScanMessages?.NOTICE?.exportFailed ||
+            "Could not create the file. Try again."),
       "!"
     );
 
+  } finally {
+
+    // Always restores the button, including after a failure, so the
+    // user is never left with a permanently disabled export.
+    setExportBusy(false);
+
   }
+
+}
+
+
+/*
+  Disables the export button and shows what is happening while a slow
+  export runs.
+*/
+function setExportBusy(busy, label) {
+
+  const button =
+    $("exportBtn");
+
+
+  if (!button) {
+
+    return;
+
+  }
+
+
+  if (busy) {
+
+    if (!button.dataset.idleLabel) {
+
+      button.dataset.idleLabel = button.textContent;
+
+    }
+
+    button.textContent = label || "Working…";
+
+  } else {
+
+    button.textContent =
+      button.dataset.idleLabel || "Export Document";
+
+  }
+
+
+  button.disabled = busy;
+
+  button.classList.toggle("is-busy", busy);
 
 }
 
@@ -3556,7 +3667,7 @@ function renameDocument(id) {
   if (!trimmed) {
 
     showToast(
-      "Name cannot be empty",
+      window.WebScanMessages?.NOTICE?.nameRequired || "Enter a name for this document.",
       "!"
     );
 
@@ -4012,6 +4123,13 @@ $("retryCameraBtn")
   );
 
 
+$("importInsteadBtn")
+  .addEventListener(
+    "click",
+    openFilePicker
+  );
+
+
 $("captureBtn")
   .addEventListener(
     "click",
@@ -4234,7 +4352,7 @@ $("ocrBtn")
       if (!page || !window.WebScanOCR) {
 
         showToast(
-          "OCR is unavailable",
+          window.WebScanMessages?.NOTICE?.ocrUnavailable || "Text recognition is unavailable right now.",
           "!"
         );
 
@@ -4305,7 +4423,7 @@ $("cropBtn")
       if (!page || !window.WebScanCrop) {
 
         showToast(
-          "Crop is unavailable",
+          window.WebScanMessages?.NOTICE?.cropUnavailable || "Manual crop is unavailable right now.",
           "!"
         );
 
@@ -5178,7 +5296,8 @@ window.webscanPageAPI = {
     if (!page || !window.WebScanCrop) {
 
       showToast(
-        "Crop is unavailable",
+        window.WebScanMessages?.NOTICE?.cropUnavailable ||
+          "Manual crop is unavailable right now.",
         "!"
       );
 
