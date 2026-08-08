@@ -285,7 +285,13 @@ function analyseQuality(gray) {
     const brightness = cv.mean(gray)[0];
 
     glareMask = new cv.Mat();
-    cv.threshold(gray, glareMask, 245, 255, cv.THRESH_BINARY);
+
+    /*
+      Near-saturation only. At 245 a plain white page registered as 40%
+      glare and blocked auto capture; genuine specular highlights clip
+      much closer to pure white than paper ever does.
+    */
+    cv.threshold(gray, glareMask, 252, 255, cv.THRESH_BINARY);
     const glareRatio = cv.countNonZero(glareMask) / (gray.rows * gray.cols);
 
     return { sharpness: sd * sd, brightness, glareRatio };

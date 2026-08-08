@@ -286,7 +286,16 @@
       let glareRatio = 0;
 
       try {
-        cv.threshold(gray, glareMask, 245, 255, cv.THRESH_BINARY);
+        /*
+          Glare means blown-out highlights, not bright paper.
+
+          A threshold of 245 counted the page itself: a plain white sheet
+          measured 40% "glare" and was permanently blocked from auto
+          capture. Real specular highlights clip essentially to white, so
+          the test is raised to near-saturation where paper does not
+          reach but a reflection does.
+        */
+        cv.threshold(gray, glareMask, 252, 255, cv.THRESH_BINARY);
         glareRatio = cv.countNonZero(glareMask) / (gray.rows * gray.cols);
       } finally {
         glareMask.delete();
