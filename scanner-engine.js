@@ -1,1893 +1,585 @@
+
 /* =========================================================
    WebScan Advanced Scanner Engine
-   Version 1.0
+   Auto Edge Detection + Perspective Correction
+   Camera UI enhancement
+   ========================================================= */
 
-   Features:
-   - Live document edge detection
-   - Four corner detection
-   - Document boundary overlay
-   - Perspective correction
-   - Auto crop
-   - Capture fallback
-========================================================= */
+(() => {
+  "use strict";
 
-"use strict";
+  const $ = (id) => document.getElementById(id);
 
+  const cameraScreen = $("cameraScreen");
+  const video = $("video");
+  const captureBtn = $("captureBtn");
+  const fileInput = $("fileInput");
 
-/* =========================================================
-   CONFIG
-========================================================= */
-
-const WS_SCANNER_CONFIG = {
-
-  detectionInterval: 180,
-
-  minimumAreaRatio: 0.12,
-
-  maximumAreaRatio: 0.95,
-
-  cannyLow: 50,
-
-  cannyHigh: 150,
-
-  blurSize: 5,
-
-  perspectiveMaximumSize: 2400,
-
-  jpegQuality: 0.88
-
-};
-
-
-let wsDetectionTimer = null;
-
-let wsDetectionRunning = false;
-
-let wsDetectedCorners = null;
-
-let wsOpenCVReady = false;
-
-
-/* =========================================================
-   BASIC HELPERS
-========================================================= */
-
-function wsGet(id) {
-
-  return document.getElementById(id);
-
-}
-
-
-function wsCameraVideo() {
-
-  return wsGet("video");
-
-}
-
-
-/* =========================================================
-   OPEN CV CHECK
-========================================================= */
-
-function wsCheckOpenCV() {
-
-  try {
-
-    if (
-      typeof cv !== "undefined" &&
-      cv &&
-      typeof cv.Mat === "function"
-    ) {
-
-      wsOpenCVReady = true;
-
-      return true;
-
-    }
-
-  } catch (error) {
-
-    console.error(
-      "OpenCV check failed:",
-      error
-    );
-
-  }
-
-  return false;
-
-}
-
-
-/* =========================================================
-   WAIT FOR OPENCV
-========================================================= */
-
-function wsWaitForOpenCV() {
-
-  if (wsCheckOpenCV()) {
-
-    wsUpdateDetectionStatus(
-      "Ready to scan",
-      false
-    );
-
+  if (!cameraScreen || !video || !captureBtn) {
+    console.warn("WebScan Advanced Scanner: camera elements not found.");
     return;
-
   }
 
-
-  wsUpdateDetectionStatus(
-    "Loading scanner…",
-    false
-  );
-
-
-  setTimeout(
-    wsWaitForOpenCV,
-    500
-  );
-
-}
-
-
-/* =========================================================
-   CREATE CAMERA UI
-========================================================= */
-
-function wsCreateScannerUI() {
-
-  const cameraView =
-    document.querySelector(
-      "#cameraScreen .camera-view"
-    );
-
-
-  if (!cameraView) {
-
-    return;
-
-  }
-
-
-  /*
-    Overlay
-  */
-
-  if (!wsGet("wsScannerOverlay")) {
-
-    const svg =
-      document.createElement("svg");
-
-    svg.id =
-      "wsScannerOverlay";
-
-    svg.setAttribute(
-      "aria-hidden",
-      "true"
-    );
-
-
-    const polygon =
-      document.createElement("polygon");
-
-    polygon.id =
-      "wsScannerPolygon";
-
-
-    svg.appendChild(
-      polygon
-    );
-
-
-    cameraView.appendChild(
-      svg
-    );
-
-  }
-
-
-  /*
-    Detection badge
-  */
-
-  if (!wsGet("wsDetectionBadge")) {
-
-    const badge =
-      document.createElement("div");
-
-    badge.id =
-      "wsDetectionBadge";
-
-
-    const dot =
-      document.createElement("i");
-
-    dot.id =
-      "wsDetectionDot";
-
-
-    const text =
-      document.createElement("span");
-
-    text.id =
-      "wsDetectionText";
-
-    text.textContent =
-      "Looking for document…";
-
-
-    badge.appendChild(dot);
-
-    badge.appendChild(text);
-
-
-    cameraView.appendChild(
-      badge
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   DETECTION STATUS
-========================================================= */
-
-function wsUpdateDetectionStatus(
-  message,
-  detected
-) {
-
-  const badge =
-    wsGet("wsDetectionBadge");
-
-  const text =
-    wsGet("wsDetectionText");
-
-
-  if (!badge || !text) {
-
-    return;
-
-  }
-
-
-  text.textContent =
-    message;
-
-
-  badge.classList.toggle(
-    "detected",
-    Boolean(detected)
-  );
-
-}
-
-
-/* =========================================================
-   START LIVE DETECTION
-========================================================= */
-
-function wsStartDetection() {
-
-  if (wsDetectionRunning) {
-
-    return;
-
-  }
-
-
-  wsDetectionRunning = true;
-
-
-  wsCreateScannerUI();
-
-  wsWaitForOpenCV();
-
-
-  wsDetectionLoop();
-
-}
-
-
-/* =========================================================
-   STOP LIVE DETECTION
-========================================================= */
-
-function wsStopDetection() {
-
-  wsDetectionRunning = false;
-
-
-  if (wsDetectionTimer) {
-
-    clearTimeout(
-      wsDetectionTimer
-    );
-
-    wsDetectionTimer = null;
-
-  }
-
-
-  wsDetectedCorners = null;
-
-  wsClearOverlay();
-
-}
-
-
-/* =========================================================
-   DETECTION LOOP
-========================================================= */
-
-function wsDetectionLoop() {
-
-  if (!wsDetectionRunning) {
-
-    return;
-
-  }
-
-
-  const video =
-    wsCameraVideo();
-
-
-  if (
-    !video ||
-    !video.videoWidth ||
-    !video.videoHeight
-  ) {
-
-    wsDetectionTimer =
-      setTimeout(
-        wsDetectionLoop,
-        300
-      );
-
-    return;
-
-  }
-
-
-  if (!wsCheckOpenCV()) {
-
-    wsDetectionTimer =
-      setTimeout(
-        wsDetectionLoop,
-        500
-      );
-
-    return;
-
-  }
-
-
-  try {
-
-    const corners =
-      wsDetectDocument(
-        video
-      );
-
-
-    if (corners) {
-
-      wsDetectedCorners =
-        corners;
-
-
-      wsUpdateDetectionStatus(
-        "Document detected ✓",
-        true
-      );
-
-
-      wsDrawOverlay(
-        corners
-      );
-
-    } else {
-
-      wsDetectedCorners =
-        null;
-
-
-      wsUpdateDetectionStatus(
-        "Align document inside frame",
-        false
-      );
-
-
-      wsClearOverlay();
-
-    }
-
-  } catch (error) {
-
-    console.error(
-      "WebScan detection error:",
-      error
-    );
-
-  }
-
-
-  wsDetectionTimer =
-    setTimeout(
-      wsDetectionLoop,
-      WS_SCANNER_CONFIG.detectionInterval
-    );
-
-}
-
-
-/* =========================================================
-   DETECT DOCUMENT
-========================================================= */
-
-function wsDetectDocument(
-  video
-) {
-
-  if (!wsCheckOpenCV()) {
-
-    return null;
-
-  }
-
-
-  const originalWidth =
-    video.videoWidth;
-
-  const originalHeight =
-    video.videoHeight;
-
-
-  /*
-    Resize processing frame
-    for better mobile performance.
-  */
-
-  const maxWidth = 900;
-
-
-  const scale =
-    Math.min(
-      1,
-      maxWidth /
-      originalWidth
-    );
-
-
-  const width =
-    Math.max(
-      1,
-      Math.round(
-        originalWidth * scale
-      )
-    );
-
-
-  const height =
-    Math.max(
-      1,
-      Math.round(
-        originalHeight * scale
-      )
-    );
-
-
-  const canvas =
-    document.createElement(
-      "canvas"
-    );
-
-
-  canvas.width =
-    width;
-
-  canvas.height =
-    height;
-
-
-  const context =
-    canvas.getContext(
-      "2d",
-      {
-        willReadFrequently: true
-      }
-    );
-
-
-  context.drawImage(
-    video,
-    0,
-    0,
-    width,
-    height
-  );
-
-
-  const src =
-    cv.imread(canvas);
-
-  const gray =
-    new cv.Mat();
-
-  const blur =
-    new cv.Mat();
-
-  const edges =
-    new cv.Mat();
-
-  const contours =
-    new cv.MatVector();
-
-  const hierarchy =
-    new cv.Mat();
-
-
-  let bestContour =
-    null;
-
-  let bestArea =
-    0;
-
-
-  try {
-
-    /*
-      Grayscale
-    */
-
-    cv.cvtColor(
-      src,
-      gray,
-      cv.COLOR_RGBA2GRAY
-    );
-
-
-    /*
-      Blur
-    */
-
-    cv.GaussianBlur(
-      gray,
-      blur,
-      new cv.Size(
-        WS_SCANNER_CONFIG.blurSize,
-        WS_SCANNER_CONFIG.blurSize
-      ),
-      0
-    );
-
-
-    /*
-      Edge detection
-    */
-
-    cv.Canny(
-      blur,
-      edges,
-      WS_SCANNER_CONFIG.cannyLow,
-      WS_SCANNER_CONFIG.cannyHigh
-    );
-
-
-    /*
-      Close small gaps
-    */
-
-    const kernel =
-      cv.Mat.ones(
-        5,
-        5,
-        cv.CV_8U
-      );
-
-
-    cv.morphologyEx(
-      edges,
-      edges,
-      cv.MORPH_CLOSE,
-      kernel
-    );
-
-
-    kernel.delete();
-
-
-    /*
-      Find contours
-    */
-
-    cv.findContours(
-      edges,
-      contours,
-      hierarchy,
-      cv.RETR_LIST,
-      cv.CHAIN_APPROX_SIMPLE
-    );
-
-
-    const imageArea =
-      width * height;
-
-
-    /*
-      Search largest valid
-      four-sided contour.
-    */
-
-    for (
-      let i = 0;
-      i < contours.size();
-      i++
-    ) {
-
-      const contour =
-        contours.get(i);
-
-
-      const area =
-        Math.abs(
-          cv.contourArea(
-            contour
-          )
-        );
-
-
-      if (
-        area <
-        imageArea *
-        WS_SCANNER_CONFIG.minimumAreaRatio
-      ) {
-
-        contour.delete();
-
-        continue;
-
-      }
-
-
-      if (
-        area >
-        imageArea *
-        WS_SCANNER_CONFIG.maximumAreaRatio
-      ) {
-
-        contour.delete();
-
-        continue;
-
-      }
-
-
-      const perimeter =
-        cv.arcLength(
-          contour,
-          true
-        );
-
-
-      const approximation =
-        new cv.Mat();
-
-
-      cv.approxPolyDP(
-        contour,
-        approximation,
-        0.02 *
-        perimeter,
-        true
-      );
-
-
-      if (
-        approximation.rows === 4 &&
-        area > bestArea
-      ) {
-
-        if (bestContour) {
-
-          bestContour.delete();
-
-        }
-
-
-        bestContour =
-          approximation.clone();
-
-        bestArea =
-          area;
-
-      }
-
-
-      approximation.delete();
-
-      contour.delete();
-
-    }
-
-
-    if (!bestContour) {
-
-      return null;
-
-    }
-
-
-    const points = [];
-
-
-    for (
-      let i = 0;
-      i < 4;
-      i++
-    ) {
-
-      points.push({
-
-        x:
-          bestContour.intAt(
-            i,
-            0
-          ),
-
-        y:
-          bestContour.intAt(
-            i,
-            1
-          )
-
-      });
-
-    }
-
-
-    /*
-      Convert back to
-      original video coordinates.
-    */
-
-    const originalPoints =
-      points.map(
-        point => ({
-
-          x:
-            point.x /
-            scale,
-
-          y:
-            point.y /
-            scale
-
-        })
-      );
-
-
-    return wsOrderCorners(
-      originalPoints
-    );
-
-  } finally {
-
-    src.delete();
-
-    gray.delete();
-
-    blur.delete();
-
-    edges.delete();
-
-    contours.delete();
-
-    hierarchy.delete();
-
-
-    if (bestContour) {
-
-      bestContour.delete();
-
-    }
-
-  }
-
-}
-
-
-/* =========================================================
-   ORDER FOUR CORNERS
-========================================================= */
-
-function wsOrderCorners(
-  points
-) {
-
-  if (
-    !points ||
-    points.length !== 4
-  ) {
-
-    return null;
-
-  }
-
-
-  const sums =
-    points.map(
-      point =>
-        point.x +
-        point.y
-    );
-
-
-  const differences =
-    points.map(
-      point =>
-        point.x -
-        point.y
-    );
-
-
-  const topLeft =
-    points[
-      sums.indexOf(
-        Math.min(
-          ...sums
-        )
-      )
-    ];
-
-
-  const bottomRight =
-    points[
-      sums.indexOf(
-        Math.max(
-          ...sums
-        )
-      )
-    ];
-
-
-  const topRight =
-    points[
-      differences.indexOf(
-        Math.max(
-          ...differences
-        )
-      )
-    ];
-
-
-  const bottomLeft =
-    points[
-      differences.indexOf(
-        Math.min(
-          ...differences
-        )
-      )
-    ];
-
-
-  return [
-    topLeft,
-    topRight,
-    bottomRight,
-    bottomLeft
-  ];
-
-}
-
-
-/* =========================================================
-   DRAW LIVE OVERLAY
-========================================================= */
-
-function wsDrawOverlay(
-  corners
-) {
-
-  const polygon =
-    wsGet(
-      "wsScannerPolygon"
-    );
-
-
-  const overlay =
-    wsGet(
-      "wsScannerOverlay"
-    );
-
-
-  const video =
-    wsCameraVideo();
-
-
-  if (
-    !polygon ||
-    !overlay ||
-    !video ||
-    !video.videoWidth
-  ) {
-
-    return;
-
-  }
-
-
-  const rect =
-    video.getBoundingClientRect();
-
-
-  const videoWidth =
-    video.videoWidth;
-
-  const videoHeight =
-    video.videoHeight;
-
-
-  /*
-    object-fit: cover
-    calculation.
-  */
-
-  const scale =
-    Math.max(
-      rect.width /
-      videoWidth,
-
-      rect.height /
-      videoHeight
-    );
-
-
-  const displayWidth =
-    videoWidth *
-    scale;
-
-
-  const displayHeight =
-    videoHeight *
-    scale;
-
-
-  const offsetX =
-    (
-      rect.width -
-      displayWidth
-    ) / 2;
-
-
-  const offsetY =
-    (
-      rect.height -
-      displayHeight
-    ) / 2;
-
-
-  const points =
-    corners
-      .map(
-        point =>
-          `${
-
-            point.x *
-            scale +
-            offsetX
-
-          },${
-
-            point.y *
-            scale +
-            offsetY
-
-          }`
-      )
-      .join(" ");
-
-
-  overlay.setAttribute(
-    "viewBox",
-    `0 0 ${rect.width} ${rect.height}`
-  );
-
-
-  polygon.setAttribute(
-    "points",
-    points
-  );
-
-}
-
-
-/* =========================================================
-   CLEAR OVERLAY
-========================================================= */
-
-function wsClearOverlay() {
-
-  const polygon =
-    wsGet(
-      "wsScannerPolygon"
-    );
-
-
-  if (polygon) {
-
-    polygon.setAttribute(
-      "points",
-      ""
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   DISTANCE
-========================================================= */
-
-function wsDistance(
-  a,
-  b
-) {
-
-  return Math.sqrt(
-
-    Math.pow(
-      b.x - a.x,
-      2
-    )
-
-    +
-
-    Math.pow(
-      b.y - a.y,
-      2
-    )
-
-  );
-
-}
-
-
-/* =========================================================
-   PERSPECTIVE CORRECTION
-========================================================= */
-
-async function wsPerspectiveCorrect(
-  sourceCanvas,
-  corners
-) {
-
-  if (
-    !wsCheckOpenCV() ||
-    !corners ||
-    corners.length !== 4
-  ) {
-
-    return sourceCanvas;
-
-  }
-
-
-  const ordered =
-    wsOrderCorners(
-      corners
-    );
-
-
-  if (!ordered) {
-
-    return sourceCanvas;
-
-  }
-
-
-  const topLeft =
-    ordered[0];
-
-  const topRight =
-    ordered[1];
-
-  const bottomRight =
-    ordered[2];
-
-  const bottomLeft =
-    ordered[3];
-
-
-  const topWidth =
-    wsDistance(
-      topLeft,
-      topRight
-    );
-
-
-  const bottomWidth =
-    wsDistance(
-      bottomLeft,
-      bottomRight
-    );
-
-
-  const leftHeight =
-    wsDistance(
-      topLeft,
-      bottomLeft
-    );
-
-
-  const rightHeight =
-    wsDistance(
-      topRight,
-      bottomRight
-    );
-
-
-  const outputWidth =
-    Math.max(
-      topWidth,
-      bottomWidth
-    );
-
-
-  const outputHeight =
-    Math.max(
-      leftHeight,
-      rightHeight
-    );
-
-
-  /*
-    Limit output size.
-  */
-
-  const maxSize =
-    WS_SCANNER_CONFIG
-      .perspectiveMaximumSize;
-
-
-  const scale =
-    Math.min(
-      1,
-      maxSize /
-      Math.max(
-        outputWidth,
-        outputHeight
-      )
-    );
-
-
-  const finalWidth =
-    Math.max(
-      1,
-      Math.round(
-        outputWidth *
-        scale
-      )
-    );
-
-
-  const finalHeight =
-    Math.max(
-      1,
-      Math.round(
-        outputHeight *
-        scale
-      )
-    );
-
-
-  const src =
-    cv.imread(
-      sourceCanvas
-    );
-
-
-  const srcPoints =
-    cv.matFromArray(
-      4,
-      1,
-      cv.CV_32FC2,
-      [
-
-        topLeft.x,
-        topLeft.y,
-
-        topRight.x,
-        topRight.y,
-
-        bottomRight.x,
-        bottomRight.y,
-
-        bottomLeft.x,
-        bottomLeft.y
-
-      ]
-    );
-
-
-  const dstPoints =
-    cv.matFromArray(
-      4,
-      1,
-      cv.CV_32FC2,
-      [
-
-        0,
-        0,
-
-        finalWidth,
-        0,
-
-        finalWidth,
-        finalHeight,
-
-        0,
-        finalHeight
-
-      ]
-    );
-
-
-  const transform =
-    cv.getPerspectiveTransform(
-      srcPoints,
-      dstPoints
-    );
-
-
-  const output =
-    new cv.Mat();
-
-
-  cv.warpPerspective(
-    src,
-    output,
-    transform,
-    new cv.Size(
-      finalWidth,
-      finalHeight
-    ),
-    cv.INTER_CUBIC,
-    cv.BORDER_REPLICATE
-  );
-
-
-  const canvas =
-    document.createElement(
-      "canvas"
-    );
-
-
-  canvas.width =
-    finalWidth;
-
-  canvas.height =
-    finalHeight;
-
-
-  cv.imshow(
-    canvas,
-    output
-  );
-
-
-  src.delete();
-
-  srcPoints.delete();
-
-  dstPoints.delete();
-
-  transform.delete();
-
-  output.delete();
-
-
-  return canvas;
-
-}
-
-
-/* =========================================================
-   CAMERA FLASH EFFECT
-========================================================= */
-
-function wsCaptureFlash() {
-
-  const cameraView =
-    document.querySelector(
-      "#cameraScreen .camera-view"
-    );
-
-
-  if (!cameraView) {
-
-    return;
-
-  }
-
-
-  const flash =
-    document.createElement(
-      "div"
-    );
-
-
-  flash.className =
-    "ws-capture-flash";
-
-
-  cameraView.appendChild(
-    flash
-  );
-
-
-  setTimeout(
-    () => {
-
-      flash.remove();
-
-    },
-    250
-  );
-
-}
-
-
-/* =========================================================
-   PROCESSING UI
-========================================================= */
-
-function wsProcessingStart() {
-
-  const cameraView =
-    document.querySelector(
-      "#cameraScreen .camera-view"
-    );
-
-
-  if (!cameraView) {
-
-    return;
-
-  }
-
-
-  if (
-    wsGet(
-      "wsCaptureProcessing"
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  const box =
-    document.createElement(
-      "div"
-    );
-
-
-  box.id =
-    "wsCaptureProcessing";
-
-
-  box.className =
-    "ws-capture-processing";
-
-
-  box.innerHTML = `
-
-    <span class="ws-processing-spinner"></span>
-
-    <span>
-      Straightening document…
-    </span>
-
+  cameraScreen.classList.add("ws-pro-camera");
+
+  let cvReady = false;
+  let detecting = false;
+  let lastCorners = null;
+  let mode = "Scan";
+  let autoCrop = true;
+  let detectTimer = null;
+
+  const liveOverlay = document.createElement("div");
+  liveOverlay.className = "ws-live-corners";
+  liveOverlay.innerHTML = `
+    <span class="ws-live-corner" data-corner="0"></span>
+    <span class="ws-live-corner" data-corner="1"></span>
+    <span class="ws-live-corner" data-corner="2"></span>
+    <span class="ws-live-corner" data-corner="3"></span>
+  `;
+  cameraScreen.querySelector(".camera-view")?.appendChild(liveOverlay);
+
+  const status = document.createElement("div");
+  status.className = "ws-live-status";
+  status.innerHTML = `<i></i><span>Looking for document…</span>`;
+  cameraScreen.querySelector(".camera-view")?.appendChild(status);
+
+  const flash = document.createElement("div");
+  flash.className = "ws-capture-flash";
+  cameraScreen.querySelector(".camera-view")?.appendChild(flash);
+
+  const processing = document.createElement("div");
+  processing.className = "ws-processing";
+  processing.innerHTML = `
+    <div class="ws-processing-card">
+      <div class="ws-processing-spinner"></div>
+      <div class="ws-processing-title">Scanning document</div>
+      <div class="ws-processing-sub">Detecting edges and correcting perspective…</div>
+    </div>
+  `;
+  cameraScreen.querySelector(".camera-view")?.appendChild(processing);
+
+  const modeBar = document.createElement("div");
+  modeBar.className = "ws-mode-bar";
+  modeBar.innerHTML = `
+    <button class="ws-mode" data-mode="Text">Text</button>
+    <button class="ws-mode" data-mode="ID Cards">ID Cards</button>
+    <button class="ws-mode" data-mode="Sign">Sign</button>
+    <button class="ws-mode active" data-mode="Scan">Scan</button>
+    <button class="ws-mode" data-mode="To Word">To Word</button>
+    <button class="ws-mode" data-mode="Question Set">Question Set</button>
+  `;
+  cameraScreen.appendChild(modeBar);
+
+  const header = cameraScreen.querySelector(".camera-header");
+  const existingSettings = $("cameraSettingsBtn");
+
+  const topActions = document.createElement("div");
+  topActions.className = "ws-camera-top-actions";
+  topActions.innerHTML = `
+    <button type="button" class="ws-camera-top-btn" id="wsFlashTop" aria-label="Flash">⚡</button>
+    <button type="button" class="ws-camera-top-btn" id="wsHdTop" aria-label="HD">HD</button>
+    <button type="button" class="ws-camera-top-btn" id="wsMoreTop" aria-label="More">•••</button>
   `;
 
+  if (header) header.appendChild(topActions);
 
-  cameraView.appendChild(
-    box
-  );
+  const sheet = document.createElement("div");
+  sheet.className = "ws-mode-sheet";
+  sheet.innerHTML = `
+    <div class="ws-mode-sheet-title">Scan options</div>
+    <div class="ws-mode-grid">
+      <button class="ws-mode-option active" data-opt="auto">Auto crop</button>
+      <button class="ws-mode-option" data-opt="manual">Full image</button>
+      <button class="ws-mode-option" data-opt="reset">Reset frame</button>
+    </div>
+  `;
+  cameraScreen.appendChild(sheet);
 
-}
-
-
-function wsProcessingStop() {
-
-  const box =
-    wsGet(
-      "wsCaptureProcessing"
-    );
-
-
-  if (box) {
-
-    box.remove();
-
+  function setStatus(text, type = "") {
+    status.className = "ws-live-status " + type;
+    status.querySelector("span").textContent = text;
   }
 
-}
+  function cvIsReady() {
+    return typeof window.cv !== "undefined" &&
+      !!window.cv.Mat &&
+      !!window.cv.imread;
+  }
 
+  function orderPoints(points) {
+    const pts = points.map(p => ({ x: p.x, y: p.y }));
+    const sum = pts.map(p => p.x + p.y);
+    const diff = pts.map(p => p.x - p.y);
 
-/* =========================================================
-   ADVANCED CAPTURE
-========================================================= */
+    return [
+      pts[sum.indexOf(Math.min(...sum))],   // top-left
+      pts[diff.indexOf(Math.max(...diff))], // top-right
+      pts[sum.indexOf(Math.max(...sum))],   // bottom-right
+      pts[diff.indexOf(Math.min(...diff))]  // bottom-left
+    ];
+  }
 
-async function wsAdvancedCapture() {
+  function distance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
 
-  const video =
-    wsCameraVideo();
-
-
-  if (
-    !video ||
-    !video.videoWidth
-  ) {
-
-    if (
-      typeof showToast ===
-      "function"
-    ) {
-
-      showToast(
-        "Camera is not ready",
-        "!"
-      );
-
+  function polygonArea(p) {
+    let area = 0;
+    for (let i = 0; i < p.length; i++) {
+      const a = p[i];
+      const b = p[(i + 1) % p.length];
+      area += a.x * b.y - b.x * a.y;
     }
-
-    return;
-
+    return Math.abs(area / 2);
   }
 
+  function findDocumentCorners(canvas) {
+    if (!cvIsReady()) return null;
 
-  wsCaptureFlash();
-
-
-  /*
-    Capture original camera frame.
-  */
-
-  const canvas =
-    document.createElement(
-      "canvas"
-    );
-
-
-  canvas.width =
-    video.videoWidth;
-
-  canvas.height =
-    video.videoHeight;
-
-
-  const context =
-    canvas.getContext(
-      "2d"
-    );
-
-
-  context.drawImage(
-    video,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
-
-
-  let finalCanvas =
-    canvas;
-
-
-  /*
-    Perspective correction.
-  */
-
-  if (
-    wsDetectedCorners
-  ) {
+    let src = null, gray = null, blur = null, edges = null;
+    let contours = null, hierarchy = null;
 
     try {
+      src = cv.imread(canvas);
+      const maxW = 720;
 
-      wsProcessingStart();
+      if (src.cols > maxW) {
+        const scale = maxW / src.cols;
+        const resized = new cv.Mat();
+        cv.resize(src, resized, new cv.Size(
+          Math.round(src.cols * scale),
+          Math.round(src.rows * scale)
+        ));
+        src.delete();
+        src = resized;
+      }
 
+      gray = new cv.Mat();
+      blur = new cv.Mat();
+      edges = new cv.Mat();
 
-      finalCanvas =
-        await wsPerspectiveCorrect(
-          canvas,
-          wsDetectedCorners
-        );
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+      cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
+      cv.Canny(blur, edges, 60, 160);
 
-
-      wsProcessingStop();
-
-
-    } catch (error) {
-
-      console.error(
-        "Perspective correction failed:",
-        error
+      contours = new cv.MatVector();
+      hierarchy = new cv.Mat();
+      cv.findContours(
+        edges,
+        contours,
+        hierarchy,
+        cv.RETR_LIST,
+        cv.CHAIN_APPROX_SIMPLE
       );
 
-
-      wsProcessingStop();
-
-      finalCanvas =
-        canvas;
-
-    }
-
-  }
-
-
-  const data =
-    finalCanvas.toDataURL(
-      "image/jpeg",
-      WS_SCANNER_CONFIG
-        .jpegQuality
-    );
-
-
-  /*
-    Add page directly to the
-    existing WebScan state.
-  */
-
-  if (
-    typeof state !== "undefined" &&
-    Array.isArray(state.pages)
-  ) {
-
-    state.pages.push({
-
-      id:
-        Date.now() +
-        Math.random(),
-
-      src:
-        data,
-
-      filter:
-        "original",
-
-      brightness:
-        0,
-
-      contrast:
-        0,
-
-      rotation:
-        0,
-
-      autoCropped:
-        Boolean(
-          wsDetectedCorners
-        )
-
-    });
-
-
-    state.currentPage =
-      state.pages.length - 1;
-
-
-    if (
-      typeof updatePages ===
-      "function"
-    ) {
-
-      updatePages();
-
-    }
-
-
-    if (
-      typeof showToast ===
-      "function"
-    ) {
-
-      showToast(
-
-        wsDetectedCorners
-
-          ? `Page ${state.pages.length} scanned ✓`
-
-          : `Page ${state.pages.length} captured`
-
-      );
-
-    }
-
-  }
-
-
-  wsDetectedCorners =
-    null;
-
-
-  wsClearOverlay();
-
-}
-
-
-/* =========================================================
-   INTERCEPT EXISTING CAPTURE BUTTON
-=========================================================
-
-   IMPORTANT:
-
-   Existing script.js already has a click
-   listener on #captureBtn.
-
-   We use capture phase so this handler
-   runs before the old handler.
-========================================================= */
-
-function wsInstallCaptureHandler() {
-
-  const button =
-    wsGet(
-      "captureBtn"
-    );
-
-
-  if (!button) {
-
-    return;
-
-  }
-
-
-  if (
-    button.dataset
-      .webscanAdvancedInstalled
-  ) {
-
-    return;
-
-  }
-
-
-  button.dataset
-    .webscanAdvancedInstalled =
-    "true";
-
-
-  button.addEventListener(
-
-    "click",
-
-    async event => {
-
-      /*
-        Stop old capturePhoto()
-        from running.
-      */
-
-      event.preventDefault();
-
-      event.stopImmediatePropagation();
-
-
-      await wsAdvancedCapture();
-
-    },
-
-    true
-
-  );
-
-}
-
-
-/* =========================================================
-   CAMERA SCREEN OBSERVER
-========================================================= */
-
-function wsObserveCameraScreen() {
-
-  const cameraScreen =
-    wsGet(
-      "cameraScreen"
-    );
-
-
-  if (!cameraScreen) {
-
-    return;
-
-  }
-
-
-  const observer =
-    new MutationObserver(
-      mutations => {
-
-        for (
-          const mutation of mutations
-        ) {
-
-          if (
-            mutation.attributeName ===
-            "class"
-          ) {
-
-            const active =
-              cameraScreen.classList
-                .contains(
-                  "active"
-                );
-
-
-            if (active) {
-
-              setTimeout(
-                () => {
-
-                  wsCreateScannerUI();
-
-                  wsStartDetection();
-
-                  wsInstallCaptureHandler();
-
-                },
-                250
-              );
-
-            } else {
-
-              wsStopDetection();
-
+      const imageArea = src.cols * src.rows;
+      let best = null;
+      let bestScore = 0;
+
+      for (let i = 0; i < contours.size(); i++) {
+        const contour = contours.get(i);
+        const peri = cv.arcLength(contour, true);
+        const approx = new cv.Mat();
+
+        cv.approxPolyDP(contour, approx, 0.025 * peri, true);
+
+        if (approx.rows === 4 && cv.isContourConvex(approx)) {
+          const area = Math.abs(cv.contourArea(approx));
+          const ratio = area / imageArea;
+
+          if (ratio > 0.10 && ratio < 0.98) {
+            const pts = [];
+            for (let j = 0; j < 4; j++) {
+              pts.push({
+                x: approx.intPtr(j, 0)[0],
+                y: approx.intPtr(j, 0)[1]
+              });
             }
 
-          }
+            const ordered = orderPoints(pts);
+            const areaScore = ratio;
+            const rectangularity =
+              Math.min(
+                distance(ordered[0], ordered[1]),
+                distance(ordered[1], ordered[2]),
+                distance(ordered[2], ordered[3]),
+                distance(ordered[3], ordered[0])
+              ) > 20 ? 1 : 0.2;
 
+            const score = areaScore * rectangularity;
+
+            if (score > bestScore) {
+              bestScore = score;
+              best = ordered.map(p => ({
+                x: p.x * (canvas.width / src.cols),
+                y: p.y * (canvas.height / src.rows)
+              }));
+            }
+          }
         }
 
-      }
-    );
-
-
-  observer.observe(
-    cameraScreen,
-    {
-      attributes: true
-    }
-  );
-
-
-  /*
-    In case camera screen
-    is already active.
-  */
-
-  if (
-    cameraScreen.classList
-      .contains("active")
-  ) {
-
-    setTimeout(
-      () => {
-
-        wsCreateScannerUI();
-
-        wsStartDetection();
-
-        wsInstallCaptureHandler();
-
-      },
-      250
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   RESIZE HANDLER
-========================================================= */
-
-window.addEventListener(
-  "resize",
-  () => {
-
-    if (
-      wsDetectedCorners
-    ) {
-
-      wsDrawOverlay(
-        wsDetectedCorners
-      );
-
-    }
-
-  }
-);
-
-
-/* =========================================================
-   INITIALIZE
-========================================================= */
-
-function wsInitializeScanner() {
-
-  wsCreateScannerUI();
-
-  wsObserveCameraScreen();
-
-  wsInstallCaptureHandler();
-
-}
-
-
-/*
-  Wait until existing WebScan
-  script has finished initializing.
-*/
-
-if (
-  document.readyState ===
-  "loading"
-) {
-
-  document.addEventListener(
-    "DOMContentLoaded",
-    wsInitializeScanner
-  );
-
-} else {
-
-  wsInitializeScanner();
-
-}
-
-
-/* =========================================================
-   PUBLIC DEBUG HELPERS
-========================================================= */
-
-window.WebScanScanner = {
-
-  start:
-    wsStartDetection,
-
-  stop:
-    wsStopDetection,
-
-  detect:
-    () => {
-
-      const video =
-        wsCameraVideo();
-
-      if (!video) {
-        return null;
+        approx.delete();
+        contour.delete();
       }
 
-      return wsDetectDocument(
-        video
+      return best;
+    } catch (error) {
+      console.warn("Document detection failed:", error);
+      return null;
+    } finally {
+      [src, gray, blur, edges, contours, hierarchy].forEach(obj => {
+        try { obj?.delete(); } catch (_) {}
+      });
+    }
+  }
+
+  function showCorners(corners) {
+    if (!corners) {
+      lastCorners = null;
+      document.querySelectorAll(".ws-live-corner").forEach(el => {
+        el.style.display = "none";
+      });
+      return;
+    }
+
+    lastCorners = corners;
+
+    const rect = video.getBoundingClientRect();
+    const vw = video.videoWidth || rect.width;
+    const vh = video.videoHeight || rect.height;
+
+    corners.forEach((p, i) => {
+      const el = document.querySelector(`.ws-live-corner[data-corner="${i}"]`);
+      if (!el) return;
+
+      const x = Math.max(0, Math.min(1, p.x / vw));
+      const y = Math.max(0, Math.min(1, p.y / vh));
+
+      el.style.left = `${x * 100}%`;
+      el.style.top = `${y * 100}%`;
+      el.style.display = "block";
+    });
+
+    const frame = cameraScreen.querySelector(".scan-frame");
+    frame?.classList.add("ws-detected");
+  }
+
+  function hideCorners() {
+    document.querySelectorAll(".ws-live-corner").forEach(el => {
+      el.style.display = "none";
+    });
+    cameraScreen.querySelector(".scan-frame")?.classList.remove("ws-detected");
+  }
+
+  function detectLive() {
+    if (detecting || !video.videoWidth || video.readyState < 2) return;
+    detecting = true;
+
+    try {
+      const c = document.createElement("canvas");
+      const targetW = 640;
+      const ratio = video.videoHeight / video.videoWidth;
+      c.width = targetW;
+      c.height = Math.round(targetW * ratio);
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, c.width, c.height);
+
+      const corners = findDocumentCorners(c);
+
+      if (corners) {
+        const sx = video.videoWidth / c.width;
+        const sy = video.videoHeight / c.height;
+        showCorners(corners.map(p => ({ x: p.x * sx, y: p.y * sy })));
+        setStatus("Document detected", "ready");
+      } else {
+        hideCorners();
+        setStatus("Looking for document…");
+      }
+    } catch (e) {
+      setStatus("Ready to scan");
+    } finally {
+      detecting = false;
+    }
+  }
+
+  function startLiveDetection() {
+    if (detectTimer) clearInterval(detectTimer);
+    detectTimer = setInterval(detectLive, 450);
+  }
+
+  function stopLiveDetection() {
+    if (detectTimer) clearInterval(detectTimer);
+    detectTimer = null;
+  }
+
+  function makeCaptureCanvas() {
+    const c = document.createElement("canvas");
+    c.width = video.videoWidth;
+    c.height = video.videoHeight;
+    const ctx = c.getContext("2d");
+
+    // The existing app may mirror the front camera. For document mode
+    // we normally use the rear camera, so no horizontal flip is applied.
+    ctx.drawImage(video, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  function warpPerspective(sourceCanvas, corners) {
+    if (!cvIsReady() || !corners || corners.length !== 4) {
+      return sourceCanvas;
+    }
+
+    let src = null, dst = null, srcTri = null, dstTri = null, M = null;
+
+    try {
+      const ordered = orderPoints(corners);
+      const [tl, tr, br, bl] = ordered;
+
+      const widthA = distance(br, bl);
+      const widthB = distance(tr, tl);
+      const maxWidth = Math.max(1, Math.round(Math.max(widthA, widthB)));
+
+      const heightA = distance(tr, br);
+      const heightB = distance(tl, bl);
+      const maxHeight = Math.max(1, Math.round(Math.max(heightA, heightB)));
+
+      const maxOutput = 3000;
+      const scale = Math.min(1, maxOutput / Math.max(maxWidth, maxHeight));
+      const outW = Math.max(1, Math.round(maxWidth * scale));
+      const outH = Math.max(1, Math.round(maxHeight * scale));
+
+      src = cv.imread(sourceCanvas);
+
+      srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+        tl.x, tl.y,
+        tr.x, tr.y,
+        br.x, br.y,
+        bl.x, bl.y
+      ]);
+
+      dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
+        0, 0,
+        outW - 1, 0,
+        outW - 1, outH - 1,
+        0, outH - 1
+      ]);
+
+      M = cv.getPerspectiveTransform(srcTri, dstTri);
+      dst = new cv.Mat();
+
+      cv.warpPerspective(
+        src,
+        dst,
+        M,
+        new cv.Size(outW, outH),
+        cv.INTER_LINEAR,
+        cv.BORDER_REPLICATE,
+        new cv.Scalar()
       );
 
-    },
+      const out = document.createElement("canvas");
+      out.width = outW;
+      out.height = outH;
+      cv.imshow(out, dst);
+      return out;
+    } catch (error) {
+      console.warn("Perspective correction failed:", error);
+      return sourceCanvas;
+    } finally {
+      [src, dst, srcTri, dstTri, M].forEach(obj => {
+        try { obj?.delete(); } catch (_) {}
+      });
+    }
+  }
 
-  getCorners:
-    () =>
-      wsDetectedCorners
+  async function addProcessedImageToExistingApp(canvas) {
+    return new Promise((resolve, reject) => {
+      try {
+        canvas.toBlob(blob => {
+          if (!blob) {
+            reject(new Error("Could not create scan image."));
+            return;
+          }
 
-};
+          const file = new File(
+            [blob],
+            `WebScan_${Date.now()}.jpg`,
+            { type: "image/jpeg" }
+          );
+
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+
+          if (!fileInput) {
+            reject(new Error("File input not found."));
+            return;
+          }
+
+          const originalValue = fileInput.files;
+          fileInput.files = transfer.files;
+
+          // Existing script.js already listens for this event and sends
+          // imported images into the normal WebScan editor pipeline.
+          fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+          setTimeout(() => {
+            try {
+              fileInput.value = "";
+            } catch (_) {}
+            resolve();
+          }, 80);
+        }, "image/jpeg", 0.94);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  async function enhancedCapture(event) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+
+    if (!video.videoWidth) {
+      setStatus("Camera is not ready", "error");
+      return;
+    }
+
+    processing.classList.add("show");
+    flash.classList.remove("show");
+    void flash.offsetWidth;
+    flash.classList.add("show");
+
+    await new Promise(r => setTimeout(r, 40));
+
+    try {
+      const raw = makeCaptureCanvas();
+
+      let corners = lastCorners;
+
+      // Run a fresh detection on the full-resolution capture.
+      if (autoCrop && cvReady) {
+        const fresh = findDocumentCorners(raw);
+        if (fresh) corners = fresh;
+      }
+
+      const result = autoCrop && corners
+        ? warpPerspective(raw, corners)
+        : raw;
+
+      await addProcessedImageToExistingApp(result);
+
+      setStatus(
+        autoCrop && corners
+          ? "Document corrected"
+          : "Scan captured",
+        "ready"
+      );
+    } catch (error) {
+      console.error(error);
+      setStatus("Scan failed — try again", "error");
+    } finally {
+      processing.classList.remove("show");
+    }
+  }
+
+  // Capture phase runs before script.js's normal click listener.
+  captureBtn.addEventListener("click", enhancedCapture, true);
+
+  document.addEventListener("click", (event) => {
+    const btn = event.target.closest?.(".ws-mode");
+    if (!btn) return;
+
+    mode = btn.dataset.mode || "Scan";
+    document.querySelectorAll(".ws-mode").forEach(el => {
+      el.classList.toggle("active", el === btn);
+    });
+
+    setStatus(`${mode} mode`, "ready");
+  });
+
+  const topFlash = $("wsFlashTop");
+  const topHd = $("wsHdTop");
+  const topMore = $("wsMoreTop");
+
+  topFlash?.addEventListener("click", async () => {
+    const track = video.srcObject?.getVideoTracks?.()[0];
+    const caps = track?.getCapabilities?.();
+
+    if (caps?.torch) {
+      try {
+        const current = track.getSettings?.().torch || false;
+        await track.applyConstraints({ advanced: [{ torch: !current }] });
+        topFlash.classList.toggle("ws-active", !current);
+        setStatus(!current ? "Flash on" : "Flash off", "ready");
+        return;
+      } catch (_) {}
+    }
+
+    setStatus("Flash is not supported by this camera", "error");
+  });
+
+  topHd?.addEventListener("click", () => {
+    topHd.classList.toggle("ws-active");
+    const enabled = topHd.classList.contains("ws-active");
+    setStatus(enabled ? "HD mode" : "Standard quality", "ready");
+  });
+
+  topMore?.addEventListener("click", () => {
+    sheet.classList.toggle("show");
+  });
+
+  sheet.addEventListener("click", (event) => {
+    const option = event.target.closest?.(".ws-mode-option");
+    if (!option) return;
+
+    const value = option.dataset.opt;
+
+    if (value === "auto") {
+      autoCrop = true;
+      setStatus("Auto crop enabled", "ready");
+    }
+
+    if (value === "manual") {
+      autoCrop = false;
+      setStatus("Full image mode", "ready");
+    }
+
+    if (value === "reset") {
+      autoCrop = true;
+      hideCorners();
+      setStatus("Frame reset");
+    }
+
+    sheet.querySelectorAll(".ws-mode-option").forEach(el => {
+      el.classList.toggle("active", el === option);
+    });
+
+    sheet.classList.remove("show");
+  });
+
+  window.addEventListener("resize", () => {
+    hideCorners();
+  });
+
+  function waitForOpenCV() {
+    if (cvIsReady()) {
+      cvReady = true;
+      setStatus("Auto scan ready", "ready");
+      startLiveDetection();
+      return;
+    }
+
+    setTimeout(waitForOpenCV, 250);
+  }
+
+  waitForOpenCV();
+
+  // If the camera starts after this engine loads, detection will still
+  // begin as soon as video dimensions become available.
+  video.addEventListener("loadedmetadata", () => {
+    setTimeout(startLiveDetection, 300);
+  });
+
+  window.addEventListener("beforeunload", stopLiveDetection);
+})();
