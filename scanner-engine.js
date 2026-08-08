@@ -33,15 +33,253 @@
 
   const AUTO_CAPTURE_HOLD_MS = 900;
 
+  // Temporal smoothing state. Detection runs per frame and is noisy, so
+  // results are filtered over time before anything reaches the screen.
+  let smoothedCorners = null;
+  let missStreak = 0;
+
+  // Latest quality reading and whether every capture condition is met.
+  let lastQuality = null;
+  let captureReady = false;
+
+  // Weight of each new measurement. Lower is steadier but slower.
+  const SMOOTHING = 0.35;
+
+  // Frames a document may go undetected before the overlay is cleared.
+  // Prevents flicker when one frame fails during small hand movements.
+  const MAX_MISSES = 3;
+
+  // Fraction of the frame width a corner may jump between updates before
+  // the tracker treats it as a different document and snaps to it.
+  const SNAP_DISTANCE_RATIO = 0.25;
+
+  /* =========================================================
+     FRAME QUALITY ANALYSIS
+     Real pixel measurements taken from the live preview. These gate
+     auto capture and drive the on-screen guidance messages.
+     ========================================================= */
+
+  // Laplacian variance below this means the frame is too soft to read.
+  const BLUR_VARIANCE_MIN = 55;
+
+  // Mean luminance bounds (0-255) for a usable exposure.
+  const DARK_MEAN_MAX = 55;
+  const BRIGHT_MEAN_MIN = 225;
+
+  // Share of near-white pixels that indicates blown-out glare.
+  const GLARE_RATIO_MAX = 0.16;
+
+  // Document must fill at least this fraction of the frame.
+  const MIN_DOC_AREA_RATIO = 0.16;
+
+  // Corner may not sit closer than this fraction of the frame to an edge.
+  const EDGE_MARGIN_RATIO = 0.012;
+
+  /*
+    Maximum tolerated deviation from a right angle before the shot is
+    considered too skewed to correct cleanly.
+
+    Rotation does not affect this: a rotated page still has 90° corners.
+    It only rejects keystoning from shooting at a steep angle, where
+    warping would visibly stretch the far edge of the text.
+  */
+  const MAX_TILT_DEGREES = 25;
+
+  /*
+    Measures sharpness and exposure on the grayscale preview.
+    Returns null when OpenCV cannot run, so callers fall back to
+    allowing capture rather than blocking the user.
+  */
+  function analyseFrameQuality(gray) {
+    let laplacian = null, mean = null, stddev = null;
+
+    try {
+      laplacian = new cv.Mat();
+      cv.Laplacian(gray, laplacian, cv.CV_64F);
+
+      mean = new cv.Mat();
+      stddev = new cv.Mat();
+      cv.meanStdDev(laplacian, mean, stddev);
+
+      // Variance of the Laplacian is the standard sharpness estimator:
+      // a blurred image has little high-frequency energy.
+      const sd = stddev.doubleAt(0, 0);
+      const sharpness = sd * sd;
+
+      const brightness = cv.mean(gray)[0];
+
+      // Count near-white pixels to spot specular glare/reflections.
+      const glareMask = new cv.Mat();
+      let glareRatio = 0;
+
+      try {
+        cv.threshold(gray, glareMask, 245, 255, cv.THRESH_BINARY);
+        glareRatio = cv.countNonZero(glareMask) / (gray.rows * gray.cols);
+      } finally {
+        glareMask.delete();
+      }
+
+      return { sharpness, brightness, glareRatio };
+    } catch (error) {
+      console.warn("Quality analysis failed:", error);
+      return null;
+    } finally {
+      [laplacian, mean, stddev].forEach(m => {
+        try { m?.delete(); } catch (_) {}
+      });
+    }
+  }
+
+  /*
+    Combines geometry and image quality into a single verdict.
+    `ok` gates auto capture; `message` is what the user is told.
+    Ordered so the most actionable problem is reported first.
+  */
+  function evaluateCaptureReadiness(corners, quality, frameW, frameH) {
+    if (!corners) {
+      return { ok: false, message: "Looking for document…" };
+    }
+
+    const frameArea = frameW * frameH;
+    const areaRatio = polygonArea(corners) / frameArea;
+
+    if (areaRatio < MIN_DOC_AREA_RATIO) {
+      return { ok: false, message: "Move closer to the document" };
+    }
+
+    // A corner touching the frame edge means part of the page is very
+    // likely cut off, which would silently crop content away.
+    const marginX = frameW * EDGE_MARGIN_RATIO;
+    const marginY = frameH * EDGE_MARGIN_RATIO;
+
+    const clipped = corners.some(p =>
+      p.x <= marginX ||
+      p.y <= marginY ||
+      p.x >= frameW - marginX ||
+      p.y >= frameH - marginY
+    );
+
+    if (clipped) {
+      return { ok: false, message: "Fit the whole document in frame" };
+    }
+
+    const [tl, tr, br, bl] = corners;
+    const angles = [
+      cornerAngle(bl, tl, tr),
+      cornerAngle(tl, tr, br),
+      cornerAngle(tr, br, bl),
+      cornerAngle(br, bl, tl)
+    ];
+
+    const worstTilt = Math.max(...angles.map(a => Math.abs(90 - a)));
+
+    if (worstTilt > MAX_TILT_DEGREES) {
+      return { ok: false, message: "Hold the camera flat above the page" };
+    }
+
+    if (quality) {
+      if (quality.brightness < DARK_MEAN_MAX) {
+        return { ok: false, message: "Too dark — add more light" };
+      }
+
+      if (quality.brightness > BRIGHT_MEAN_MIN) {
+        return { ok: false, message: "Too bright — reduce the light" };
+      }
+
+      if (quality.glareRatio > GLARE_RATIO_MAX) {
+        return { ok: false, message: "Glare detected — tilt away from the light" };
+      }
+
+      if (quality.sharpness < BLUR_VARIANCE_MIN) {
+        return { ok: false, message: "Hold steady — image is blurry" };
+      }
+    }
+
+    return { ok: true, message: "Document detected ✓" };
+  }
+
+  // How long the outline must stay still before it is confirmed.
+  const STABLE_CONFIRM_MS = 450;
+
+  // Movement below this fraction of frame width counts as "holding still".
+  const STABLE_TOLERANCE_RATIO = 0.035;
+
+  let stabilityReference = null;
+
+  function averageCornerShift(a, b) {
+    let total = 0;
+    for (let i = 0; i < 4; i++) {
+      total += distance(a[i], b[i]);
+    }
+    return total / 4;
+  }
+
+  /*
+    Blends the newest detection into the tracked quadrilateral.
+    Small changes are damped so the outline stays calm while the phone
+    moves; a large jump means the user aimed at something else, so the
+    tracker snaps rather than sliding across the screen.
+  */
+  function smoothCorners(corners) {
+    if (!smoothedCorners) {
+      smoothedCorners = corners;
+      return smoothedCorners;
+    }
+
+    const frameWidth = video.videoWidth || 1;
+    const shift = averageCornerShift(smoothedCorners, corners);
+
+    if (shift > frameWidth * SNAP_DISTANCE_RATIO) {
+      smoothedCorners = corners;
+      return smoothedCorners;
+    }
+
+    smoothedCorners = smoothedCorners.map((prev, i) => ({
+      x: prev.x + (corners[i].x - prev.x) * SMOOTHING,
+      y: prev.y + (corners[i].y - prev.y) * SMOOTHING
+    }));
+
+    return smoothedCorners;
+  }
+
+  /*
+    Measures how long the raw detection has stayed in one place.
+    `stableSince` drives both the confirmation tick and auto capture, so
+    neither can trigger while the document is still drifting.
+  */
+  function trackStability(corners) {
+    const frameWidth = video.videoWidth || 1;
+    const tolerance = frameWidth * STABLE_TOLERANCE_RATIO;
+
+    if (
+      stabilityReference &&
+      averageCornerShift(stabilityReference, corners) <= tolerance
+    ) {
+      if (stableSince === null) {
+        stableSince = Date.now();
+      }
+      return;
+    }
+
+    // Moved too much — restart the hold timer from this position.
+    stabilityReference = corners;
+    stableSince = null;
+  }
+
   const liveOverlay = document.createElement("div");
   liveOverlay.className = "ws-live-corners";
   liveOverlay.innerHTML = `
+    <svg class="ws-live-quad" preserveAspectRatio="none" viewBox="0 0 100 100">
+      <polygon class="ws-live-quad-shape" points="" />
+    </svg>
     <span class="ws-live-corner" data-corner="0"></span>
     <span class="ws-live-corner" data-corner="1"></span>
     <span class="ws-live-corner" data-corner="2"></span>
     <span class="ws-live-corner" data-corner="3"></span>
   `;
   cameraScreen.querySelector(".camera-view")?.appendChild(liveOverlay);
+
+  const quadShape = liveOverlay.querySelector(".ws-live-quad-shape");
 
   const status = document.createElement("div");
   status.className = "ws-live-status";
@@ -82,6 +320,13 @@
   topActions.className = "ws-camera-top-actions";
   topActions.innerHTML = `
     <button type="button" class="ws-camera-top-btn" id="wsFlashTop" aria-label="Flash">⚡</button>
+    <button
+      type="button"
+      class="ws-camera-top-btn ws-auto-btn"
+      id="wsAutoTop"
+      aria-label="Auto capture"
+      aria-pressed="false"
+    >AUTO</button>
     <button type="button" class="ws-camera-top-btn" id="wsHdTop" aria-label="HD">HD</button>
     <button type="button" class="ws-camera-top-btn" id="wsMoreTop" aria-label="More">•••</button>
   `;
@@ -138,37 +383,94 @@
     return Math.abs(area / 2);
   }
 
-  function findDocumentCorners(canvas) {
-    if (!cvIsReady()) return null;
+  /*
+    Interior angle at corner `b`, between segments b->a and b->c.
+    A real sheet of paper photographed from a normal angle keeps every
+    corner reasonably close to 90°, so this is the main signal used to
+    throw away random rectangular clutter in the scene.
+  */
+  function cornerAngle(a, b, c) {
+    const v1x = a.x - b.x, v1y = a.y - b.y;
+    const v2x = c.x - b.x, v2y = c.y - b.y;
 
-    let src = null, gray = null, blur = null, edges = null;
-    let contours = null, hierarchy = null;
+    const len1 = Math.hypot(v1x, v1y);
+    const len2 = Math.hypot(v2x, v2y);
+
+    if (!len1 || !len2) return 0;
+
+    const cos = (v1x * v2x + v1y * v2y) / (len1 * len2);
+
+    return Math.acos(Math.max(-1, Math.min(1, cos))) * (180 / Math.PI);
+  }
+
+  /*
+    Scores an ordered quadrilateral as a document candidate.
+    Returns 0 when the shape should be rejected outright, which is what
+    keeps false detections off the screen.
+  */
+  function scoreQuad(ordered, imageArea) {
+    const [tl, tr, br, bl] = ordered;
+
+    const area = polygonArea(ordered);
+    const ratio = area / imageArea;
+
+    // Too small to be the document being scanned, or so large it is
+    // almost certainly the video frame border itself.
+    if (ratio < 0.08 || ratio > 0.97) return 0;
+
+    const top = distance(tl, tr);
+    const right = distance(tr, br);
+    const bottom = distance(br, bl);
+    const left = distance(bl, tl);
+
+    const minSide = Math.min(top, right, bottom, left);
+    const maxSide = Math.max(top, right, bottom, left);
+
+    if (minSide < 40) return 0;
+
+    // Opposite sides of a document stay similar in length even when the
+    // page is tilted. Wildly mismatched pairs mean it is not a rectangle.
+    const horizontalRatio = Math.min(top, bottom) / Math.max(top, bottom);
+    const verticalRatio = Math.min(left, right) / Math.max(left, right);
+
+    if (horizontalRatio < 0.55 || verticalRatio < 0.55) return 0;
+
+    // Reject extreme slivers, but stay permissive enough for long
+    // receipts and ID cards in either orientation.
+    const aspect = maxSide / minSide;
+    if (aspect > 6) return 0;
+
+    const angles = [
+      cornerAngle(bl, tl, tr),
+      cornerAngle(tl, tr, br),
+      cornerAngle(tr, br, bl),
+      cornerAngle(br, bl, tl)
+    ];
+
+    let angleError = 0;
+    for (const angle of angles) {
+      // Perspective can push a corner well away from 90°, but a genuine
+      // page never collapses into a very sharp or very flat corner.
+      if (angle < 50 || angle > 135) return 0;
+      angleError += Math.abs(90 - angle);
+    }
+
+    const angleScore = Math.max(0, 1 - (angleError / 160));
+    const shapeScore = (horizontalRatio + verticalRatio) / 2;
+
+    // Larger, squarer, better-proportioned candidates win.
+    return ratio * 0.45 + angleScore * 0.35 + shapeScore * 0.20;
+  }
+
+  /*
+    Collects quadrilateral candidates from a single binary edge mask.
+    Shared by every detection strategy below.
+  */
+  function collectCandidates(edges, imageArea, onCandidate) {
+    const contours = new cv.MatVector();
+    const hierarchy = new cv.Mat();
 
     try {
-      src = cv.imread(canvas);
-      const maxW = 720;
-
-      if (src.cols > maxW) {
-        const scale = maxW / src.cols;
-        const resized = new cv.Mat();
-        cv.resize(src, resized, new cv.Size(
-          Math.round(src.cols * scale),
-          Math.round(src.rows * scale)
-        ));
-        src.delete();
-        src = resized;
-      }
-
-      gray = new cv.Mat();
-      blur = new cv.Mat();
-      edges = new cv.Mat();
-
-      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-      cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
-      cv.Canny(blur, edges, 60, 160);
-
-      contours = new cv.MatVector();
-      hierarchy = new cv.Mat();
       cv.findContours(
         edges,
         contours,
@@ -177,102 +479,265 @@
         cv.CHAIN_APPROX_SIMPLE
       );
 
+      for (let i = 0; i < contours.size(); i++) {
+        const contour = contours.get(i);
+
+        try {
+          // Cheap area gate before the more expensive polygon fit.
+          if (Math.abs(cv.contourArea(contour)) < imageArea * 0.05) {
+            continue;
+          }
+
+          const peri = cv.arcLength(contour, true);
+
+          // Several tolerances, because the ideal simplification level
+          // depends on how clean the page edges came out.
+          for (const epsilon of [0.02, 0.03, 0.045]) {
+            const approx = new cv.Mat();
+
+            try {
+              cv.approxPolyDP(contour, approx, epsilon * peri, true);
+
+              if (approx.rows === 4 && cv.isContourConvex(approx)) {
+                const pts = [];
+                for (let j = 0; j < 4; j++) {
+                  pts.push({
+                    x: approx.intPtr(j, 0)[0],
+                    y: approx.intPtr(j, 0)[1]
+                  });
+                }
+
+                onCandidate(orderPoints(pts));
+                break;
+              }
+            } finally {
+              approx.delete();
+            }
+          }
+        } finally {
+          contour.delete();
+        }
+      }
+    } finally {
+      contours.delete();
+      hierarchy.delete();
+    }
+  }
+
+  function findDocumentCorners(canvas) {
+    if (!cvIsReady()) return null;
+
+    const mats = [];
+    const track = (mat) => { mats.push(mat); return mat; };
+
+    try {
+      let src = track(cv.imread(canvas));
+      const maxW = 720;
+
+      if (src.cols > maxW) {
+        const scale = maxW / src.cols;
+        const resized = track(new cv.Mat());
+        cv.resize(src, resized, new cv.Size(
+          Math.round(src.cols * scale),
+          Math.round(src.rows * scale)
+        ));
+        src = resized;
+      }
+
       const imageArea = src.cols * src.rows;
+
+      const gray = track(new cv.Mat());
+      const blur = track(new cv.Mat());
+
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+      // Edge-preserving smoothing keeps page borders crisp while
+      // removing paper texture and print noise that create fake edges.
+      cv.bilateralFilter(gray, blur, 9, 60, 60);
+
       let best = null;
       let bestScore = 0;
 
-      for (let i = 0; i < contours.size(); i++) {
-        const contour = contours.get(i);
-        const peri = cv.arcLength(contour, true);
-        const approx = new cv.Mat();
-
-        cv.approxPolyDP(contour, approx, 0.025 * peri, true);
-
-        if (approx.rows === 4 && cv.isContourConvex(approx)) {
-          const area = Math.abs(cv.contourArea(approx));
-          const ratio = area / imageArea;
-
-          if (ratio > 0.10 && ratio < 0.98) {
-            const pts = [];
-            for (let j = 0; j < 4; j++) {
-              pts.push({
-                x: approx.intPtr(j, 0)[0],
-                y: approx.intPtr(j, 0)[1]
-              });
-            }
-
-            const ordered = orderPoints(pts);
-            const areaScore = ratio;
-            const rectangularity =
-              Math.min(
-                distance(ordered[0], ordered[1]),
-                distance(ordered[1], ordered[2]),
-                distance(ordered[2], ordered[3]),
-                distance(ordered[3], ordered[0])
-              ) > 20 ? 1 : 0.2;
-
-            const score = areaScore * rectangularity;
-
-            if (score > bestScore) {
-              bestScore = score;
-              best = ordered.map(p => ({
-                x: p.x * (canvas.width / src.cols),
-                y: p.y * (canvas.height / src.rows)
-              }));
-            }
-          }
+      const consider = (ordered) => {
+        const score = scoreQuad(ordered, imageArea);
+        if (score > bestScore) {
+          bestScore = score;
+          best = ordered;
         }
+      };
 
-        approx.delete();
-        contour.delete();
+      /*
+        Strategy 1 — Canny edges at several thresholds.
+        Handles the common case of a page on a contrasting surface.
+      */
+      for (const [low, high] of [[40, 120], [60, 180], [20, 70]]) {
+        const edges = track(new cv.Mat());
+        cv.Canny(blur, edges, low, high);
+
+        // Close small gaps so a broken border still forms one contour.
+        const kernel = track(
+          cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5))
+        );
+        cv.morphologyEx(edges, edges, cv.MORPH_CLOSE, kernel);
+
+        collectCandidates(edges, imageArea, consider);
       }
 
-      return best;
+      /*
+        Strategy 2 — adaptive threshold.
+        Works when the page and background have similar brightness, and
+        for coloured paper where global contrast is weak.
+      */
+      const adaptive = track(new cv.Mat());
+      cv.adaptiveThreshold(
+        blur,
+        adaptive,
+        255,
+        cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv.THRESH_BINARY,
+        15,
+        8
+      );
+
+      const adaptiveKernel = track(
+        cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3))
+      );
+      cv.morphologyEx(adaptive, adaptive, cv.MORPH_CLOSE, adaptiveKernel);
+
+      collectCandidates(adaptive, imageArea, consider);
+
+      /*
+        Strategy 3 — saturation channel.
+        A white or light page is much less saturated than a coloured
+        desk, table or floor, so this separates them when brightness
+        alone cannot.
+      */
+      const rgb = track(new cv.Mat());
+      const hsv = track(new cv.Mat());
+      const channels = new cv.MatVector();
+
+      try {
+        cv.cvtColor(src, rgb, cv.COLOR_RGBA2RGB);
+        cv.cvtColor(rgb, hsv, cv.COLOR_RGB2HSV);
+        cv.split(hsv, channels);
+
+        const saturation = channels.get(1);
+
+        try {
+          const satEdges = track(new cv.Mat());
+          cv.Canny(saturation, satEdges, 40, 120);
+
+          const satKernel = track(
+            cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5))
+          );
+          cv.morphologyEx(satEdges, satEdges, cv.MORPH_CLOSE, satKernel);
+
+          collectCandidates(satEdges, imageArea, consider);
+        } finally {
+          saturation.delete();
+        }
+      } finally {
+        channels.delete();
+      }
+
+      if (!best) return null;
+
+      // Map back to the caller's canvas resolution.
+      const scaleX = canvas.width / src.cols;
+      const scaleY = canvas.height / src.rows;
+
+      return best.map(p => ({
+        x: p.x * scaleX,
+        y: p.y * scaleY
+      }));
     } catch (error) {
       console.warn("Document detection failed:", error);
       return null;
     } finally {
-      [src, gray, blur, edges, contours, hierarchy].forEach(obj => {
-        try { obj?.delete(); } catch (_) {}
+      mats.forEach(mat => {
+        try { mat?.delete(); } catch (_) {}
       });
     }
   }
 
+  /*
+    The video element is rendered with `object-fit: cover`, so the
+    displayed picture is scaled up and cropped. Detection happens in the
+    video's intrinsic pixel space, which means raw video coordinates must
+    be converted into the on-screen box before the overlay is positioned.
+    Without this the markers drift far outside the document.
+  */
+  function videoPointToOverlayPercent(point) {
+    const box = video.getBoundingClientRect();
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+
+    if (!vw || !vh || !box.width || !box.height) {
+      return null;
+    }
+
+    const scale = Math.max(box.width / vw, box.height / vh);
+
+    const displayedW = vw * scale;
+    const displayedH = vh * scale;
+
+    const offsetX = (box.width - displayedW) / 2;
+    const offsetY = (box.height - displayedH) / 2;
+
+    return {
+      x: ((offsetX + point.x * scale) / box.width) * 100,
+      y: ((offsetY + point.y * scale) / box.height) * 100
+    };
+  }
+
   function showCorners(corners) {
     if (!corners) {
-      lastCorners = null;
-      document.querySelectorAll(".ws-live-corner").forEach(el => {
-        el.style.display = "none";
-      });
+      hideCorners();
+      return;
+    }
+
+    const mapped = corners.map(videoPointToOverlayPercent);
+
+    if (mapped.some(p => p === null)) {
+      hideCorners();
       return;
     }
 
     lastCorners = corners;
 
-    const rect = video.getBoundingClientRect();
-    const vw = video.videoWidth || rect.width;
-    const vh = video.videoHeight || rect.height;
-
-    corners.forEach((p, i) => {
-      const el = document.querySelector(`.ws-live-corner[data-corner="${i}"]`);
+    mapped.forEach((p, i) => {
+      const el = liveOverlay.querySelector(
+        `.ws-live-corner[data-corner="${i}"]`
+      );
       if (!el) return;
 
-      const x = Math.max(0, Math.min(1, p.x / vw));
-      const y = Math.max(0, Math.min(1, p.y / vh));
-
-      el.style.left = `${x * 100}%`;
-      el.style.top = `${y * 100}%`;
+      el.style.left = `${p.x}%`;
+      el.style.top = `${p.y}%`;
       el.style.display = "block";
     });
+
+    if (quadShape) {
+      quadShape.setAttribute(
+        "points",
+        mapped.map(p => `${p.x},${p.y}`).join(" ")
+      );
+      liveOverlay.classList.add("ws-has-quad");
+    }
 
     const frame = cameraScreen.querySelector(".scan-frame");
     frame?.classList.add("ws-detected");
   }
 
   function hideCorners() {
-    document.querySelectorAll(".ws-live-corner").forEach(el => {
+    lastCorners = null;
+
+    liveOverlay.querySelectorAll(".ws-live-corner").forEach(el => {
       el.style.display = "none";
     });
+
+    liveOverlay.classList.remove("ws-has-quad");
+    quadShape?.setAttribute("points", "");
+
     cameraScreen.querySelector(".scan-frame")?.classList.remove("ws-detected");
   }
 
@@ -292,32 +757,107 @@
       const corners = findDocumentCorners(c);
 
       if (corners) {
+        missStreak = 0;
+
         const sx = video.videoWidth / c.width;
         const sy = video.videoHeight / c.height;
-        showCorners(corners.map(p => ({ x: p.x * sx, y: p.y * sy })));
-        setStatus("Document detected", "ready");
+
+        const inVideoSpace = corners.map(p => ({
+          x: p.x * sx,
+          y: p.y * sy
+        }));
+
+        showCorners(smoothCorners(inVideoSpace));
+        trackStability(inVideoSpace);
+
+        // Quality is measured on the same downscaled preview frame that
+        // detection used, so this adds no extra capture cost.
+        lastQuality = measurePreviewQuality(c);
+
+        const readiness = evaluateCaptureReadiness(
+          corners,
+          lastQuality,
+          c.width,
+          c.height
+        );
+
+        // The outline must also have stopped moving. Both conditions are
+        // required before the tick — and auto capture — are allowed.
+        const settled = stableSince !== null &&
+          Date.now() - stableSince >= STABLE_CONFIRM_MS;
+
+        captureReady = readiness.ok && settled;
+
+        if (!readiness.ok) {
+          setStatus(readiness.message, "warn");
+        } else {
+          setStatus(settled ? readiness.message : "Hold steady…", "ready");
+        }
+
+        liveOverlay.classList.toggle("ws-quad-ready", captureReady);
+
         maybeAutoCapture();
       } else {
-        hideCorners();
-        setStatus("Looking for document…");
-        stableSince = null;
+        missStreak++;
+
+        // Tolerate brief detection dropouts instead of flickering off.
+        if (missStreak > MAX_MISSES) {
+          hideCorners();
+          smoothedCorners = null;
+          stableSince = null;
+          captureReady = false;
+          lastQuality = null;
+          setStatus("Looking for document…");
+        }
       }
     } catch (e) {
       setStatus("Ready to scan");
       stableSince = null;
+      captureReady = false;
     } finally {
       detecting = false;
     }
   }
 
+  /*
+    Runs the sharpness/exposure analysis on a preview canvas.
+    Kept separate from findDocumentCorners so detection stays unchanged.
+  */
+  function measurePreviewQuality(canvas) {
+    if (!cvIsReady()) return null;
+
+    let src = null, gray = null;
+
+    try {
+      src = cv.imread(canvas);
+      gray = new cv.Mat();
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+      return analyseFrameQuality(gray);
+    } catch (error) {
+      return null;
+    } finally {
+      [src, gray].forEach(m => {
+        try { m?.delete(); } catch (_) {}
+      });
+    }
+  }
+
   function maybeAutoCapture() {
     if (!window.webscanAutoCapture || autoCapturing) {
-      stableSince = null;
       return;
     }
 
+    // Every condition must hold: four corners found, document large
+    // enough, fully inside frame, not too skewed, sharp and correctly
+    // exposed, and the outline settled.
+    if (!captureReady) {
+      return;
+    }
+
+    // `stableSince` is owned by trackStability(), which only sets it once
+    // the document has genuinely stopped moving.
     if (stableSince === null) {
-      stableSince = Date.now();
       return;
     }
 
@@ -326,6 +866,7 @@
     }
 
     stableSince = null;
+    stabilityReference = null;
     autoCapturing = true;
 
     captureBtn.click();
@@ -335,14 +876,28 @@
     }, 2000);
   }
 
+  function resetTracking() {
+    smoothedCorners = null;
+    stabilityReference = null;
+    stableSince = null;
+    missStreak = 0;
+    hideCorners();
+  }
+
   function startLiveDetection() {
     if (detectTimer) clearInterval(detectTimer);
+
+    // Clear tracking from any previous session so a stale outline is
+    // never carried over when the camera reopens.
+    resetTracking();
+
     detectTimer = setInterval(detectLive, 450);
   }
 
   function stopLiveDetection() {
     if (detectTimer) clearInterval(detectTimer);
     detectTimer = null;
+    resetTracking();
   }
 
   function makeCaptureCanvas() {
@@ -495,9 +1050,15 @@
         if (fresh) corners = fresh;
       }
 
-      const result = autoCrop && corners
-        ? warpPerspective(raw, corners)
-        : raw;
+      const cropped = autoCrop && corners;
+      const result = cropped ? warpPerspective(raw, corners) : raw;
+
+      /*
+        When the image was NOT auto-cropped it still matches the detected
+        corners, so they are handed to the editor to pre-fill the manual
+        adjustment handles. After warping they no longer apply.
+      */
+      window.webscanLastCorners = cropped ? null : corners;
 
       await addProcessedImageToExistingApp(result);
 
@@ -559,6 +1120,42 @@
     setStatus("Flash is not supported by this camera", "error");
   });
 
+  const topAuto = $("wsAutoTop");
+
+  /*
+    Reflects the shared auto-capture preference on the camera button.
+    script.js owns the setting, so both this control and the Settings
+    screen toggle always show the same value.
+  */
+  function syncAutoButton() {
+    const on = !!window.webscanAutoCapture;
+    topAuto?.classList.toggle("ws-active", on);
+    topAuto?.setAttribute("aria-pressed", String(on));
+  }
+
+  topAuto?.addEventListener("click", () => {
+    const next = !window.webscanAutoCapture;
+
+    // Delegates to script.js so the change is persisted and the Settings
+    // screen row updates too, instead of keeping a second source of truth.
+    if (typeof window.webscanSetAutoCapture === "function") {
+      window.webscanSetAutoCapture(next);
+    } else {
+      window.webscanAutoCapture = next;
+    }
+
+    syncAutoButton();
+
+    if (!next) {
+      stableSince = null;
+    }
+
+    setStatus(next ? "Auto capture on" : "Auto capture off", "ready");
+  });
+
+  window.addEventListener("webscan-autocapture-changed", syncAutoButton);
+  syncAutoButton();
+
   topHd?.addEventListener("click", () => {
     topHd.classList.toggle("ws-active");
     const enabled = topHd.classList.contains("ws-active");
@@ -602,24 +1199,46 @@
     hideCorners();
   });
 
+  function onOpenCVReady() {
+    if (cvReady) return;
+
+    cvReady = true;
+    setStatus("Auto scan ready", "ready");
+    startLiveDetection();
+  }
+
   function waitForOpenCV() {
     if (cvIsReady()) {
-      cvReady = true;
-      setStatus("Auto scan ready", "ready");
-      startLiveDetection();
+      onOpenCVReady();
       return;
     }
 
     setTimeout(waitForOpenCV, 250);
   }
 
+  // opencv.js signals readiness through Module.onRuntimeInitialized, which
+  // index.html forwards as this event. Polling stays as a fallback for the
+  // case where the runtime finished before this script ran.
+  window.addEventListener("webscan-opencv-ready", onOpenCVReady);
+
+  window.addEventListener("webscan-opencv-failed", () => {
+    setStatus("Auto detection unavailable — tap to capture", "error");
+  });
+
   waitForOpenCV();
 
-  // If the camera starts after this engine loads, detection will still
-  // begin as soon as video dimensions become available.
+  // If the camera starts after this engine loads, detection resumes as
+  // soon as video dimensions are available — but only once OpenCV is up,
+  // otherwise the detector would run and silently find nothing.
   video.addEventListener("loadedmetadata", () => {
+    if (!cvReady) return;
     setTimeout(startLiveDetection, 300);
   });
+
+  // script.js clears the stream when leaving the camera screen. Stopping
+  // the detector then keeps it from scanning blank frames in the
+  // background, which would waste CPU and battery on mobile.
+  video.addEventListener("emptied", stopLiveDetection);
 
   window.addEventListener("beforeunload", stopLiveDetection);
 })();

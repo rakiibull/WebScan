@@ -482,9 +482,16 @@ async function handleFiles(files) {
 
         contrast: 0,
 
-        rotation: 0
+        rotation: 0,
+
+        // Corners detected at capture time, used to pre-fill the manual
+        // crop handles. Null for gallery imports and cropped scans.
+        corners: window.webscanLastCorners || null
 
       });
+
+
+      window.webscanLastCorners = null;
 
     } catch (error) {
 
@@ -833,15 +840,30 @@ function drawProcessedImage(
   );
 
 
-  let filter =
-    buildCanvasFilter();
+  /*
+    Pixel-level enhancement (shadow removal, adaptive thresholding)
+    produces far better scans than CSS filters can, so it is used when
+    the engine is available. Brightness/contrast sliders still apply on
+    top as a canvas filter, and everything falls back to the original
+    CSS-filter path if the engine or OpenCV is missing.
+  */
+  let source = img;
+
+  const enhanced = enhanceSource(img);
+
+  if (enhanced) {
+    source = enhanced;
+  }
 
 
-  ctx.filter = filter;
+  ctx.filter =
+    enhanced
+      ? buildSliderFilter()
+      : buildCanvasFilter();
 
 
   ctx.drawImage(
-    img,
+    source,
     -img.naturalWidth / 2,
     -img.naturalHeight / 2
   );
@@ -851,6 +873,109 @@ function drawProcessedImage(
 
 
   ctx.filter = "none";
+
+}
+
+
+/*
+  Runs the enhancement engine for the active filter and caches the
+  result. Without the cache every brightness/contrast slider step would
+  redo the full pixel pass and make dragging stutter.
+*/
+let enhanceCache = {
+  key: null,
+  canvas: null
+};
+
+
+function enhanceSource(img) {
+
+  if (!window.WebScanEnhance) {
+
+    return null;
+
+  }
+
+
+  // "original" keeps the untouched photo, so no work is needed.
+  if (state.filter === "original") {
+
+    return null;
+
+  }
+
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  const key =
+    `${page ? page.id : "none"}|${state.filter}`;
+
+
+  if (
+    enhanceCache.key === key &&
+    enhanceCache.canvas
+  ) {
+
+    return enhanceCache.canvas;
+
+  }
+
+
+  try {
+
+    const base =
+      document.createElement("canvas");
+
+    base.width = img.naturalWidth;
+
+    base.height = img.naturalHeight;
+
+    base
+      .getContext("2d")
+      .drawImage(img, 0, 0);
+
+
+    const result =
+      window.WebScanEnhance.enhance(
+        base,
+        {
+          mode: state.filter,
+          shadowRemoval: true
+        }
+      );
+
+
+    enhanceCache = {
+      key,
+      canvas: result
+    };
+
+
+    return result;
+
+  } catch (error) {
+
+    console.warn(error);
+
+    return null;
+
+  }
+
+}
+
+
+/*
+  Only the manual brightness/contrast sliders. Used when the enhancement
+  engine has already applied the mode, so the look is not doubled up.
+*/
+function buildSliderFilter() {
+
+  return `
+    brightness(${100 + state.brightness}%)
+    contrast(${100 + state.contrast}%)
+  `;
 
 }
 
@@ -898,6 +1023,17 @@ function buildCanvasFilter() {
       return `
         brightness(${Math.min(135, brightness + 8)}%)
         contrast(${Math.min(145, contrast + 15)}%)
+      `;
+
+
+    case "magic":
+
+      // Fallback only. The real Magic Color runs in the enhancement
+      // engine; this keeps colours sensible if that is unavailable.
+      return `
+        saturate(140%)
+        brightness(${Math.min(130, brightness + 6)}%)
+        contrast(${Math.min(150, contrast + 20)}%)
       `;
 
 
@@ -2390,6 +2526,69 @@ $("rotateBtn")
   );
 
 
+$("cropBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      const page =
+        state.pages[state.currentPage];
+
+
+      if (!page || !window.WebScanCrop) {
+
+        showToast(
+          "Crop is unavailable",
+          "!"
+        );
+
+        return;
+
+      }
+
+
+      window.WebScanCrop.open({
+
+        dataUrl: page.src,
+
+        // Corners saved at capture time seed the handles, so manual
+        // adjustment starts from the automatic result instead of a
+        // generic rectangle.
+        initialCorners: page.corners,
+
+        onApply: (canvas) => {
+
+          page.src =
+            canvas.toDataURL(
+              "image/jpeg",
+              0.95
+            );
+
+
+          // The image is now physically cropped, so stored corners no
+          // longer describe it and must not be reused.
+          page.corners = null;
+
+
+          // The page id is unchanged but its pixels are not, so the
+          // cached enhancement must be dropped or a stale image shows.
+          enhanceCache = { key: null, canvas: null };
+
+
+          renderEditor();
+
+          updatePages();
+
+          showToast("Crop applied");
+
+        }
+
+      });
+
+    }
+  );
+
+
 $("resetEditBtn")
   .addEventListener(
     "click",
@@ -2543,6 +2742,22 @@ function applyPreferences() {
     });
 
   window.webscanAutoCapture = state.autoCapture;
+
+  // Lets the camera screen's AUTO button change the same setting instead
+  // of holding its own copy, so both controls always agree.
+  window.webscanSetAutoCapture = (enabled) => {
+
+    state.autoCapture = !!enabled;
+
+    applyPreferences();
+
+    savePreferences();
+
+  };
+
+  window.dispatchEvent(
+    new Event("webscan-autocapture-changed")
+  );
 
   $("darkModeToggle")
     .querySelector(".toggle")

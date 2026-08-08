@@ -466,6 +466,13 @@
 
           <button
             class="filter-btn"
+            data-filter="magic"
+          >
+            Magic
+          </button>
+
+          <button
+            class="filter-btn"
             data-filter="bw"
           >
             B&W
@@ -514,6 +521,14 @@
           >
             <span>◐</span>
             <small>Contrast</small>
+          </button>
+
+          <button
+            id="cropBtn"
+            class="adjust-btn"
+          >
+            <span>⛶</span>
+            <small>Crop</small>
           </button>
 
           <button
@@ -974,11 +989,30 @@
 
 <script src="script.js"></script>
 
-    <!-- OpenCV for automatic document detection -->
-    <script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+    <!-- OpenCV for automatic document detection.
+         Module is declared before the script loads so that
+         onRuntimeInitialized fires reliably instead of relying on polling. -->
+    <script>
+      var Module = {
+        onRuntimeInitialized: function () {
+          window.dispatchEvent(new Event("webscan-opencv-ready"));
+        }
+      };
+    </script>
+    <script
+      async
+      src="https://docs.opencv.org/4.x/opencv.js"
+      onerror="window.dispatchEvent(new Event('webscan-opencv-failed'))"
+    ></script>
+
+    <!-- Local pixel-level document enhancement -->
+    <script src="enhance-engine.js"></script>
 
     <!-- WebScan Advanced Scanner Engine -->
     <script src="scanner-engine.js"></script>
+
+    <!-- Manual corner adjustment / crop editor -->
+    <script src="crop-editor.js"></script>
 
 </body>
 </html>

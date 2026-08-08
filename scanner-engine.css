@@ -183,17 +183,47 @@
   pointer-events: none;
 }
 
+/* Live document boundary drawn between the four detected corners.
+   preserveAspectRatio="none" lets the 0-100 viewBox map straight onto
+   the camera view, so points can be supplied as plain percentages. */
+.ws-live-quad {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+
+.ws-live-corners.ws-has-quad .ws-live-quad {
+  opacity: 1;
+}
+
+.ws-live-quad-shape {
+  fill: rgba(53, 246, 189, .16);
+  stroke: #35f6bd;
+
+  /* The viewBox is stretched non-uniformly, so stroke width is kept in
+     screen pixels instead of scaling with the box. */
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px rgba(53, 246, 189, .45));
+}
+
 .ws-live-corner {
   position: absolute;
   width: 12px;
   height: 12px;
-  margin: -6px;
   border: 2px solid #35f6bd;
   border-radius: 50%;
   background: rgba(53,246,189,.22);
   box-shadow: 0 0 14px rgba(53,246,189,.35);
+
+  /* Centres the marker on the detected point. No extra margin offset,
+     which would otherwise shift every corner by half its own size. */
   transform: translate(-50%, -50%);
-  transition: left .15s ease, top .15s ease;
+  transition: left .12s linear, top .12s linear;
 }
 
 .ws-live-status {
@@ -509,4 +539,168 @@
     height: 64px;
     min-width: 64px;
   }
+}
+
+
+/* =========================================================
+   CAPTURE GUIDANCE STATE
+   ========================================================= */
+
+/* Amber pill while a capture condition is unmet (blur, glare,
+   too dark, too far, tilted, or the page runs off frame). */
+.ws-live-status.warn i {
+  background: #ffb300;
+  box-shadow: 0 0 9px rgba(255,179,0,.55);
+}
+
+/* The outline turns solid only when every condition passes, so the
+   user can see readiness without reading the text. */
+.ws-live-corners.ws-quad-ready .ws-live-quad-shape {
+  fill: rgba(53, 246, 189, .24);
+  stroke-width: 3;
+}
+
+.ws-camera-top-btn.ws-auto-btn {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+
+/* =========================================================
+   MANUAL CORNER ADJUSTMENT
+   ========================================================= */
+
+.ws-crop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: none;
+  flex-direction: column;
+  background: #06070a;
+  color: #fff;
+}
+
+.ws-crop-overlay.show {
+  display: flex;
+}
+
+.ws-crop-header,
+.ws-crop-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(12,14,19,.96);
+}
+
+.ws-crop-header {
+  padding-top: calc(14px + env(safe-area-inset-top));
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.ws-crop-header strong {
+  font-size: 14px;
+}
+
+.ws-crop-footer {
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.ws-crop-hint {
+  font-size: 11px;
+  color: rgba(255,255,255,.55);
+}
+
+.ws-crop-cancel,
+.ws-crop-reset {
+  background: transparent;
+  border: 0;
+  color: rgba(255,255,255,.8);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 4px;
+}
+
+.ws-crop-apply {
+  border: 0;
+  border-radius: 22px;
+  padding: 11px 26px;
+  background: #35f6bd;
+  color: #04231c;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ws-crop-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  /* Touch drags move the handles, so the browser must not also pan. */
+  touch-action: none;
+}
+
+.ws-crop-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* contain keeps the whole page visible; the editor accounts for the
+     resulting letterbox when placing handles. */
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ws-crop-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ws-crop-poly {
+  fill: rgba(53,246,189,.16);
+  stroke: #35f6bd;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+}
+
+.ws-crop-handles {
+  position: absolute;
+  inset: 0;
+}
+
+.ws-crop-handle {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 3px solid #35f6bd;
+  border-radius: 50%;
+  background: rgba(6,17,15,.75);
+  box-shadow: 0 0 14px rgba(53,246,189,.45);
+  transform: translate(-50%, -50%);
+  /* Generous hit area for fingers without enlarging the visual dot. */
+  touch-action: none;
+  cursor: grab;
+}
+
+.ws-crop-handle::after {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+}
+
+.ws-crop-handle.ws-dragging {
+  cursor: grabbing;
+  background: #35f6bd;
+  transform: translate(-50%, -50%) scale(1.15);
 }
