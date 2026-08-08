@@ -42,7 +42,13 @@ const state = {
 
   documentName: "My Document",
 
-  favorite: false
+  favorite: false,
+
+  darkMode: true,
+
+  autoCapture: false,
+
+  showScanFrame: true
 };
 
 
@@ -126,6 +132,51 @@ function saveDocuments() {
       "Storage is full",
       "!"
     );
+  }
+}
+
+
+function loadPreferences() {
+
+  try {
+
+    const saved =
+      localStorage.getItem("webscan_preferences");
+
+    if (saved) {
+
+      Object.assign(
+        state,
+        JSON.parse(saved)
+      );
+
+    }
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+}
+
+
+function savePreferences() {
+
+  try {
+
+    localStorage.setItem(
+      "webscan_preferences",
+      JSON.stringify({
+        darkMode: state.darkMode,
+        autoCapture: state.autoCapture,
+        showScanFrame: state.showScanFrame
+      })
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
   }
 }
 
@@ -2473,6 +2524,93 @@ $("documentsList")
 
 /* SETTINGS */
 
+function applyPreferences() {
+
+  document.body.classList.toggle(
+    "light-mode",
+    !state.darkMode
+  );
+
+  document
+    .querySelectorAll(".scan-frame")
+    .forEach(frame => {
+
+      frame.classList.toggle(
+        "hidden",
+        !state.showScanFrame
+      );
+
+    });
+
+  $("darkModeToggle")
+    .querySelector(".toggle")
+    .classList.toggle(
+      "active",
+      state.darkMode
+    );
+
+  $("autoCaptureToggle")
+    .querySelector(".toggle")
+    .classList.toggle(
+      "active",
+      state.autoCapture
+    );
+
+  $("scanFrameToggle")
+    .querySelector(".toggle")
+    .classList.toggle(
+      "active",
+      state.showScanFrame
+    );
+
+}
+
+
+$("darkModeToggle")
+  .addEventListener(
+    "click",
+    () => {
+
+      state.darkMode = !state.darkMode;
+
+      applyPreferences();
+
+      savePreferences();
+
+    }
+  );
+
+
+$("autoCaptureToggle")
+  .addEventListener(
+    "click",
+    () => {
+
+      state.autoCapture = !state.autoCapture;
+
+      applyPreferences();
+
+      savePreferences();
+
+    }
+  );
+
+
+$("scanFrameToggle")
+  .addEventListener(
+    "click",
+    () => {
+
+      state.showScanFrame = !state.showScanFrame;
+
+      applyPreferences();
+
+      savePreferences();
+
+    }
+  );
+
+
 $("settingsBackBtn")
   .addEventListener(
     "click",
@@ -2623,5 +2761,9 @@ document.addEventListener(
 ===================================================== */
 
 loadDocuments();
+
+loadPreferences();
+
+applyPreferences();
 
 showScreen("home");

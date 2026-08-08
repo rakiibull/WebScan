@@ -723,6 +723,10 @@ input {
   bottom: 14%;
 }
 
+.scan-frame.hidden {
+  display: none;
+}
+
 .corner {
   position: absolute;
 
