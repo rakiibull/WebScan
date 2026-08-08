@@ -1,230 +1,2627 @@
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const filterCanvas = document.getElementById("filterCanvas");
-const ctx = canvas.getContext("2d");
+/* =====================================================
+   WebScan Pro
+   Professional Scanner Engine
+===================================================== */
 
-const cameraSection = document.getElementById("cameraSection");
-const cropSection = document.getElementById("cropSection");
-const filterSection = document.getElementById("filterSection");
-const cropImage = document.getElementById("cropImage");
-const flashEffect = document.getElementById("flashEffect");
+"use strict";
 
-const captureBtn = document.getElementById("captureBtn");
-const pdfBtn = document.getElementById("pdfBtn");
-const cancelCropBtn = document.getElementById("cancelCropBtn");
-const applyCropBtn = document.getElementById("applyCropBtn");
-const backToCropBtn = document.getElementById("backToCropBtn");
-const saveFilterBtn = document.getElementById("saveFilterBtn");
 
-const mainControls = document.getElementById("mainControls");
-const cropControls = document.getElementById("cropControls");
-const filterControls = document.getElementById("filterControls");
+/* =====================================================
+   STATE
+===================================================== */
 
-const gallery = document.getElementById("gallery");
-const pageCount = document.getElementById("pageCount");
-const statusDiv = document.getElementById("status");
-const filterBtns = document.querySelectorAll(".filter-btn");
+const state = {
 
-// Modal Variables
-const pdfNameModal = document.getElementById("pdfNameModal");
-const pdfNameInput = document.getElementById("pdfNameInput");
-const cancelPdfBtn = document.getElementById("cancelPdfBtn");
-const confirmPdfBtn = document.getElementById("confirmPdfBtn");
+  stream: null,
 
-let scannedImages = [];
-let isOpenCvReady = false;
-let cropper;
-let originalCroppedMat = null;
+  facingMode: "environment",
 
-// OpenCV Ready Check
-function onOpenCvReady() {
-  isOpenCvReady = true;
-  statusDiv.style.background = "#27ae60";
-  statusDiv.innerHTML = '<i class="fas fa-check-circle"></i> AI Scanner Ready!';
-  captureBtn.disabled = false;
-  setTimeout(() => (statusDiv.style.display = "none"), 3000);
-}
+  flash: false,
 
-// Start Camera
-async function startCamera() {
+  zoom: 1,
+
+  pages: [],
+
+  currentPage: 0,
+
+  documents: [],
+
+  editing: false,
+
+  filter: "original",
+
+  brightness: 0,
+
+  contrast: 0,
+
+  rotation: 0,
+
+  exportFormat: "pdf",
+
+  quality: "medium",
+
+  documentName: "My Document",
+
+  favorite: false
+};
+
+
+/* =====================================================
+   ELEMENTS
+===================================================== */
+
+const $ = id => document.getElementById(id);
+
+const screens = {
+
+  home: $("homeScreen"),
+
+  camera: $("cameraScreen"),
+
+  editor: $("editorScreen"),
+
+  export: $("exportScreen"),
+
+  documents: $("documentsScreen"),
+
+  settings: $("settingsScreen")
+};
+
+const video = $("video");
+
+const cameraCanvas = $("cameraCanvas");
+
+const editorCanvas = $("editorCanvas");
+
+const fileInput = $("fileInput");
+
+
+
+/* =====================================================
+   STORAGE
+===================================================== */
+
+function loadDocuments() {
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "environment",
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-    });
-    video.srcObject = stream;
-  } catch (err) {
-    alert("ক্যামেরা চালু করা যাচ্ছে না! পারমিশন চেক করুন।");
+
+    const saved =
+      localStorage.getItem("webscan_documents");
+
+    if (saved) {
+
+      state.documents =
+        JSON.parse(saved);
+
+    }
+
+  } catch (error) {
+
+    console.error(error);
+
+    state.documents = [];
+
   }
+
+  renderRecent();
+
+  renderDocuments();
 }
 
-// 1. Capture Image
-captureBtn.addEventListener("click", () => {
-  if (!isOpenCvReady) return;
 
-  // Flash Effect
-  flashEffect.classList.add("flash-active");
-  setTimeout(() => flashEffect.classList.remove("flash-active"), 300);
+function saveDocuments() {
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  try {
 
-  cropImage.src = canvas.toDataURL("image/jpeg");
+    localStorage.setItem(
+      "webscan_documents",
+      JSON.stringify(state.documents)
+    );
 
-  cameraSection.style.display = "none";
-  mainControls.style.display = "none";
-  cropSection.style.display = "flex";
-  cropControls.style.display = "flex";
+  } catch (error) {
 
-  if (cropper) cropper.destroy();
-  cropper = new Cropper(cropImage, {
-    viewMode: 1,
-    autoCropArea: 0.9,
-    background: false,
-    zoomable: false,
-  });
-});
+    console.error(error);
 
-// 2. Cancel Crop
-cancelCropBtn.addEventListener("click", () => {
-  cropSection.style.display = "none";
-  cropControls.style.display = "none";
-  cameraSection.style.display = "flex";
-  mainControls.style.display = "flex";
-  if (cropper) cropper.destroy();
-});
-
-// 3. Apply Crop & Go to Filters
-applyCropBtn.addEventListener("click", () => {
-  const croppedCanvas = cropper.getCroppedCanvas();
-
-  if (originalCroppedMat) originalCroppedMat.delete();
-  originalCroppedMat = cv.imread(croppedCanvas);
-
-  cropSection.style.display = "none";
-  cropControls.style.display = "none";
-  filterSection.style.display = "flex";
-  filterControls.style.display = "flex";
-
-  applyFilter("magic");
-  setActiveFilterBtn("magic");
-});
-
-// 4. Filter Buttons Logic
-filterBtns.forEach((btn) => {
-  btn.addEventListener("click", (e) => {
-    const filterType = e.currentTarget.getAttribute("data-filter");
-    applyFilter(filterType);
-    setActiveFilterBtn(filterType);
-  });
-});
-
-function setActiveFilterBtn(type) {
-  filterBtns.forEach((btn) => btn.classList.remove("active"));
-  document
-    .querySelector(`.filter-btn[data-filter="${type}"]`)
-    .classList.add("active");
-}
-
-function applyFilter(type) {
-  let dst = new cv.Mat();
-
-  if (type === "original") {
-    originalCroppedMat.copyTo(dst);
-  } else if (type === "magic") {
-    originalCroppedMat.convertTo(dst, -1, 1.3, 30);
-  } else if (type === "bw") {
-    cv.cvtColor(originalCroppedMat, dst, cv.COLOR_RGBA2GRAY, 0);
-    cv.adaptiveThreshold(
-      dst,
-      dst,
-      255,
-      cv.ADAPTIVE_THRESH_GAUSSIAN_C,
-      cv.THRESH_BINARY,
-      11,
-      2,
+    showToast(
+      "Storage is full",
+      "!"
     );
   }
-
-  cv.imshow("filterCanvas", dst);
-  dst.delete();
 }
 
-// 5. Back to Crop
-backToCropBtn.addEventListener("click", () => {
-  filterSection.style.display = "none";
-  filterControls.style.display = "none";
-  cropSection.style.display = "flex";
-  cropControls.style.display = "flex";
-});
 
-// 6. Save to Gallery
-saveFilterBtn.addEventListener("click", () => {
-  const imgDataUrl = filterCanvas.toDataURL("image/jpeg", 0.8);
-  scannedImages.push(imgDataUrl);
-  updateGallery(imgDataUrl);
 
-  filterSection.style.display = "none";
-  filterControls.style.display = "none";
-  cameraSection.style.display = "flex";
-  mainControls.style.display = "flex";
+/* =====================================================
+   SCREEN NAVIGATION
+===================================================== */
 
-  if (originalCroppedMat) {
-    originalCroppedMat.delete();
-    originalCroppedMat = null;
+function showScreen(name) {
+
+  Object.values(screens)
+    .forEach(screen => {
+
+      screen.classList.remove("active");
+
+    });
+
+  screens[name].classList.add("active");
+
+  window.scrollTo(0, 0);
+
+}
+
+
+function goHome() {
+
+  stopCamera();
+
+  showScreen("home");
+
+  renderRecent();
+
+}
+
+
+function goDocuments() {
+
+  stopCamera();
+
+  showScreen("documents");
+
+  renderDocuments();
+
+}
+
+
+function goSettings() {
+
+  stopCamera();
+
+  showScreen("settings");
+
+}
+
+
+
+/* =====================================================
+   CAMERA
+===================================================== */
+
+async function startCamera() {
+
+  stopCamera();
+
+  $("cameraLoading")
+    .classList.remove("hidden");
+
+  $("cameraError")
+    .classList.add("hidden");
+
+
+  try {
+
+    if (!navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia) {
+
+      throw new Error(
+        "Camera API unavailable"
+      );
+
+    }
+
+
+    const constraints = {
+
+      audio: false,
+
+      video: {
+
+        facingMode: {
+          ideal: state.facingMode
+        },
+
+        width: {
+          ideal: 1920
+        },
+
+        height: {
+          ideal: 1080
+        }
+      }
+
+    };
+
+
+    state.stream =
+      await navigator.mediaDevices
+        .getUserMedia(constraints);
+
+
+    video.srcObject = state.stream;
+
+    await video.play();
+
+
+    $("cameraLoading")
+      .classList.add("hidden");
+
+
+    $("cameraStatusText").textContent =
+      "Ready to scan";
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    $("cameraLoading")
+      .classList.add("hidden");
+
+    $("cameraError")
+      .classList.remove("hidden");
+
+    $("cameraStatusText").textContent =
+      "Camera unavailable";
+
   }
-  if (cropper) cropper.destroy();
-});
 
-function updateGallery(imgSrc) {
-  const img = document.createElement("img");
-  img.src = imgSrc;
-  gallery.appendChild(img);
-  pageCount.innerHTML = `<i class="fas fa-copy"></i> Pages: ${scannedImages.length}`;
-  pdfBtn.style.display = "flex";
 }
 
-// 7. PDF Modal Logic
-pdfBtn.addEventListener("click", () => {
-  if (scannedImages.length === 0) return;
-  pdfNameModal.style.display = "flex";
-  pdfNameInput.focus();
-});
 
-cancelPdfBtn.addEventListener("click", () => {
-  pdfNameModal.style.display = "none";
-});
+function stopCamera() {
 
-confirmPdfBtn.addEventListener("click", () => {
-  let fileName = pdfNameInput.value.trim();
-  if (!fileName) fileName = "WebScan_Document";
-  if (!fileName.toLowerCase().endsWith(".pdf")) fileName += ".pdf";
+  if (state.stream) {
 
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "px",
-    format: [filterCanvas.width, filterCanvas.height],
+    state.stream
+      .getTracks()
+      .forEach(track => track.stop());
+
+    state.stream = null;
+
+  }
+
+  video.srcObject = null;
+
+}
+
+
+
+/* =====================================================
+   OPEN CAMERA
+===================================================== */
+
+async function openCamera() {
+
+  state.pages = [];
+
+  state.currentPage = 0;
+
+  updatePages();
+
+  showScreen("camera");
+
+  await startCamera();
+
+}
+
+
+
+/* =====================================================
+   CAPTURE
+===================================================== */
+
+function capturePhoto() {
+
+  if (!video.videoWidth) {
+
+    showToast(
+      "Camera is not ready",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  cameraCanvas.width =
+    video.videoWidth;
+
+  cameraCanvas.height =
+    video.videoHeight;
+
+
+  const ctx =
+    cameraCanvas.getContext("2d");
+
+
+  ctx.drawImage(
+    video,
+    0,
+    0,
+    cameraCanvas.width,
+    cameraCanvas.height
+  );
+
+
+  const data =
+    cameraCanvas.toDataURL(
+      "image/jpeg",
+      qualityValue()
+    );
+
+
+  state.pages.push({
+
+    id: Date.now() + Math.random(),
+
+    src: data,
+
+    filter: "original",
+
+    brightness: 0,
+
+    contrast: 0,
+
+    rotation: 0
+
   });
 
-  scannedImages.forEach((img, index) => {
-    if (index > 0)
-      pdf.addPage([filterCanvas.width, filterCanvas.height], "portrait");
-    pdf.addImage(img, "JPEG", 0, 0, filterCanvas.width, filterCanvas.height);
+
+  state.currentPage =
+    state.pages.length - 1;
+
+
+  updatePages();
+
+  showToast(
+    `Page ${state.pages.length} captured`
+  );
+
+}
+
+
+
+/* =====================================================
+   IMAGE IMPORT
+===================================================== */
+
+function openFilePicker() {
+
+  fileInput.value = "";
+
+  fileInput.click();
+
+}
+
+
+async function handleFiles(files) {
+
+  if (!files || !files.length) {
+
+    return;
+
+  }
+
+
+  const imageFiles =
+    Array.from(files)
+      .filter(file =>
+        file.type.startsWith("image/")
+      );
+
+
+  for (const file of imageFiles) {
+
+    try {
+
+      const data =
+        await fileToDataURL(file);
+
+
+      state.pages.push({
+
+        id: Date.now() + Math.random(),
+
+        src: data,
+
+        filter: "original",
+
+        brightness: 0,
+
+        contrast: 0,
+
+        rotation: 0
+
+      });
+
+    } catch (error) {
+
+      console.error(error);
+
+    }
+
+  }
+
+
+  state.currentPage =
+    Math.max(0, state.pages.length - 1);
+
+
+  updatePages();
+
+
+  if (state.pages.length) {
+
+    showScreen("editor");
+
+    openEditor(
+      state.currentPage
+    );
+
+  }
+
+}
+
+
+function fileToDataURL(file) {
+
+  return new Promise(
+    (resolve, reject) => {
+
+      const reader =
+        new FileReader();
+
+      reader.onload =
+        () => resolve(reader.result);
+
+      reader.onerror =
+        reject;
+
+      reader.readAsDataURL(file);
+
+    }
+  );
+
+}
+
+
+
+/* =====================================================
+   PAGE UI
+===================================================== */
+
+function updatePages() {
+
+  const count =
+    state.pages.length;
+
+
+  $("pageCount").textContent =
+    `${count} ${count === 1 ? "page" : "pages"}`;
+
+
+  $("scanPageLabel").textContent =
+    `Page ${Math.max(1, count + 1)}`;
+
+
+  const strip =
+    $("pageStrip");
+
+  strip.innerHTML = "";
+
+
+  state.pages.forEach(
+    (page, index) => {
+
+      const wrapper =
+        document.createElement("div");
+
+      wrapper.className =
+        "page-thumb";
+
+
+      const img =
+        document.createElement("img");
+
+      img.src = page.src;
+
+
+      const number =
+        document.createElement("span");
+
+      number.className =
+        "page-thumb-number";
+
+      number.textContent =
+        index + 1;
+
+
+      const del =
+        document.createElement("button");
+
+      del.className =
+        "page-delete";
+
+      del.textContent = "×";
+
+
+      del.addEventListener(
+        "click",
+        event => {
+
+          event.stopPropagation();
+
+          deletePage(index);
+
+        }
+      );
+
+
+      wrapper.appendChild(img);
+
+      wrapper.appendChild(number);
+
+      wrapper.appendChild(del);
+
+
+      wrapper.addEventListener(
+        "click",
+        () => {
+
+          openEditor(index);
+
+        }
+      );
+
+
+      strip.appendChild(wrapper);
+
+    }
+  );
+
+}
+
+
+function deletePage(index) {
+
+  if (!state.pages[index]) {
+
+    return;
+
+  }
+
+
+  state.pages.splice(index, 1);
+
+
+  if (!state.pages.length) {
+
+    state.currentPage = 0;
+
+    updatePages();
+
+    showToast("All pages removed");
+
+    return;
+
+  }
+
+
+  state.currentPage =
+    Math.min(
+      index,
+      state.pages.length - 1
+    );
+
+
+  updatePages();
+
+  showToast("Page deleted");
+
+}
+
+
+
+/* =====================================================
+   EDITOR
+===================================================== */
+
+function openEditor(index = 0) {
+
+  if (!state.pages.length) {
+
+    showToast(
+      "Capture a page first",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  state.currentPage =
+    Math.max(
+      0,
+      Math.min(
+        index,
+        state.pages.length - 1
+      )
+    );
+
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  state.filter =
+    page.filter || "original";
+
+  state.brightness =
+    page.brightness || 0;
+
+  state.contrast =
+    page.contrast || 0;
+
+  state.rotation =
+    page.rotation || 0;
+
+
+  showScreen("editor");
+
+
+  $("editorPageLabel").textContent =
+    `Page ${state.currentPage + 1} of ${state.pages.length}`;
+
+
+  renderEditor();
+
+}
+
+
+function renderEditor() {
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  if (!page) {
+
+    return;
+
+  }
+
+
+  const img =
+    new Image();
+
+
+  img.onload = () => {
+
+    drawProcessedImage(
+      img,
+      editorCanvas
+    );
+
+  };
+
+
+  img.src = page.src;
+
+
+  document
+    .querySelectorAll(".filter-btn")
+    .forEach(btn => {
+
+      btn.classList.toggle(
+        "active",
+        btn.dataset.filter === state.filter
+      );
+
+    });
+
+
+  $("sliderValue").textContent =
+    state.brightness;
+
+
+  $("adjustSlider").value =
+    state.brightness;
+
+}
+
+
+function drawProcessedImage(
+  img,
+  canvas
+) {
+
+  let width =
+    img.naturalWidth;
+
+  let height =
+    img.naturalHeight;
+
+
+  const rotation =
+    ((state.rotation % 360) + 360) % 360;
+
+
+  if (
+    rotation === 90 ||
+    rotation === 270
+  ) {
+
+    [width, height] =
+      [height, width];
+
+  }
+
+
+  canvas.width = width;
+
+  canvas.height = height;
+
+
+  const ctx =
+    canvas.getContext("2d");
+
+
+  ctx.save();
+
+
+  ctx.translate(
+    width / 2,
+    height / 2
+  );
+
+
+  ctx.rotate(
+    rotation * Math.PI / 180
+  );
+
+
+  let filter =
+    buildCanvasFilter();
+
+
+  ctx.filter = filter;
+
+
+  ctx.drawImage(
+    img,
+    -img.naturalWidth / 2,
+    -img.naturalHeight / 2
+  );
+
+
+  ctx.restore();
+
+
+  ctx.filter = "none";
+
+}
+
+
+function buildCanvasFilter() {
+
+  let brightness =
+    100 + state.brightness;
+
+  let contrast =
+    100 + state.contrast;
+
+
+  switch (state.filter) {
+
+    case "bw":
+
+      return `
+        grayscale(1)
+        brightness(${brightness}%)
+        contrast(${contrast}%)
+      `;
+
+
+    case "gray":
+
+      return `
+        grayscale(.85)
+        brightness(${brightness}%)
+        contrast(${contrast}%)
+      `;
+
+
+    case "document":
+
+      return `
+        grayscale(.35)
+        brightness(${Math.min(145, brightness + 10)}%)
+        contrast(${Math.min(180, contrast + 35)}%)
+      `;
+
+
+    case "auto":
+
+      return `
+        brightness(${Math.min(135, brightness + 8)}%)
+        contrast(${Math.min(145, contrast + 15)}%)
+      `;
+
+
+    default:
+
+      return `
+        brightness(${brightness}%)
+        contrast(${contrast}%)
+      `;
+
+  }
+
+}
+
+
+
+/* =====================================================
+   EDITOR ACTIONS
+===================================================== */
+
+function applyFilter(filter) {
+
+  state.filter = filter;
+
+  state.pages[state.currentPage].filter =
+    filter;
+
+  renderEditor();
+
+}
+
+
+function rotateImage() {
+
+  state.rotation =
+    (state.rotation + 90) % 360;
+
+
+  state.pages[state.currentPage].rotation =
+    state.rotation;
+
+
+  renderEditor();
+
+}
+
+
+function resetEditor() {
+
+  state.filter = "original";
+
+  state.brightness = 0;
+
+  state.contrast = 0;
+
+  state.rotation = 0;
+
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  page.filter = "original";
+
+  page.brightness = 0;
+
+  page.contrast = 0;
+
+  page.rotation = 0;
+
+
+  renderEditor();
+
+  showToast("Edits reset");
+
+}
+
+
+function saveEditorChanges() {
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  if (!page) {
+
+    return;
+
+  }
+
+
+  page.filter =
+    state.filter;
+
+  page.brightness =
+    state.brightness;
+
+  page.contrast =
+    state.contrast;
+
+  page.rotation =
+    state.rotation;
+
+
+  showToast("Changes saved");
+
+}
+
+
+
+/* =====================================================
+   SLIDER
+===================================================== */
+
+function activateAdjust(tool) {
+
+  const box =
+    $("adjustSliderBox");
+
+  const slider =
+    $("adjustSlider");
+
+
+  box.classList.remove("hidden");
+
+
+  if (tool === "brightness") {
+
+    $("sliderLabel").textContent =
+      "Brightness";
+
+    slider.value =
+      state.brightness;
+
+  }
+
+
+  if (tool === "contrast") {
+
+    $("sliderLabel").textContent =
+      "Contrast";
+
+    slider.value =
+      state.contrast;
+
+  }
+
+
+  slider.dataset.tool =
+    tool;
+
+
+  $("sliderValue").textContent =
+    slider.value;
+
+}
+
+
+$("adjustSlider").addEventListener(
+  "input",
+  () => {
+
+    const value =
+      Number(
+        $("adjustSlider").value
+      );
+
+
+    $("sliderValue").textContent =
+      value;
+
+
+    if (
+      $("adjustSlider").dataset.tool ===
+      "brightness"
+    ) {
+
+      state.brightness = value;
+
+    } else {
+
+      state.contrast = value;
+
+    }
+
+
+    renderEditor();
+
+  }
+);
+
+
+
+/* =====================================================
+   FINISH SCAN
+===================================================== */
+
+function finishScan() {
+
+  if (!state.pages.length) {
+
+    showToast(
+      "Scan at least one page",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  stopCamera();
+
+
+  state.documentName =
+    `Scan ${new Date().toLocaleDateString()}`;
+
+
+  state.favorite = false;
+
+
+  $("documentNameInput").value =
+    state.documentName;
+
+
+  $("exportName").textContent =
+    state.documentName;
+
+
+  $("exportPages").textContent =
+    `${state.pages.length} ${
+      state.pages.length === 1
+        ? "page"
+        : "pages"
+    }`;
+
+
+  showScreen("export");
+
+}
+
+
+
+/* =====================================================
+   EXPORT SETTINGS
+===================================================== */
+
+function qualityValue() {
+
+  switch (state.quality) {
+
+    case "low":
+      return .65;
+
+    case "high":
+      return .95;
+
+    default:
+      return .85;
+
+  }
+
+}
+
+
+document
+  .querySelectorAll(".format-btn")
+  .forEach(btn => {
+
+    btn.addEventListener(
+      "click",
+      () => {
+
+        document
+          .querySelectorAll(".format-btn")
+          .forEach(x =>
+            x.classList.remove("active")
+          );
+
+
+        btn.classList.add("active");
+
+
+        state.exportFormat =
+          btn.dataset.format;
+
+      }
+    );
+
   });
 
-  pdf.save(fileName);
 
-  // Reset App
-  scannedImages = [];
-  gallery.innerHTML = "";
-  pageCount.innerHTML = `<i class="fas fa-copy"></i> Pages: 0`;
-  pdfBtn.style.display = "none";
-  pdfNameModal.style.display = "none";
-});
+document
+  .querySelectorAll(".quality-btn")
+  .forEach(btn => {
 
-window.addEventListener("load", startCamera);
+    btn.addEventListener(
+      "click",
+      () => {
+
+        document
+          .querySelectorAll(".quality-btn")
+          .forEach(x =>
+            x.classList.remove("active")
+          );
+
+
+        btn.classList.add("active");
+
+
+        state.quality =
+          btn.dataset.quality;
+
+      }
+    );
+
+  });
+
+
+
+/* =====================================================
+   CREATE PROCESSED IMAGE
+===================================================== */
+
+async function createProcessedData(
+  page
+) {
+
+  const img =
+    await loadImage(page.src);
+
+
+  const oldFilter =
+    state.filter;
+
+  const oldBrightness =
+    state.brightness;
+
+  const oldContrast =
+    state.contrast;
+
+  const oldRotation =
+    state.rotation;
+
+
+  state.filter =
+    page.filter || "original";
+
+  state.brightness =
+    page.brightness || 0;
+
+  state.contrast =
+    page.contrast || 0;
+
+  state.rotation =
+    page.rotation || 0;
+
+
+  const canvas =
+    document.createElement("canvas");
+
+
+  drawProcessedImage(
+    img,
+    canvas
+  );
+
+
+  const data =
+    canvas.toDataURL(
+      "image/jpeg",
+      qualityValue()
+    );
+
+
+  state.filter =
+    oldFilter;
+
+  state.brightness =
+    oldBrightness;
+
+  state.contrast =
+    oldContrast;
+
+  state.rotation =
+    oldRotation;
+
+
+  return data;
+
+}
+
+
+function loadImage(src) {
+
+  return new Promise(
+    (resolve, reject) => {
+
+      const img =
+        new Image();
+
+      img.onload =
+        () => resolve(img);
+
+      img.onerror =
+        reject;
+
+      img.src = src;
+
+    }
+  );
+
+}
+
+
+
+/* =====================================================
+   EXPORT JPG
+===================================================== */
+
+async function exportJPG() {
+
+  const page =
+    state.pages[0];
+
+
+  if (!page) {
+
+    return;
+
+  }
+
+
+  const data =
+    await createProcessedData(page);
+
+
+  const link =
+    document.createElement("a");
+
+
+  link.href = data;
+
+  link.download =
+    `${safeFilename(state.documentName)}.jpg`;
+
+
+  link.click();
+
+}
+
+
+
+/* =====================================================
+   SIMPLE PDF GENERATOR
+===================================================== */
+
+async function exportPDF() {
+
+  const images = [];
+
+
+  for (
+    const page of state.pages
+  ) {
+
+    images.push(
+      await createProcessedData(page)
+    );
+
+  }
+
+
+  const pdf =
+    buildPDF(images);
+
+
+  const blob =
+    new Blob(
+      [pdf],
+      {
+        type: "application/pdf"
+      }
+    );
+
+
+  const url =
+    URL.createObjectURL(blob);
+
+
+  const link =
+    document.createElement("a");
+
+
+  link.href = url;
+
+  link.download =
+    `${safeFilename(state.documentName)}.pdf`;
+
+
+  document.body.appendChild(link);
+
+  link.click();
+
+  link.remove();
+
+
+  setTimeout(
+    () => URL.revokeObjectURL(url),
+    1000
+  );
+
+}
+
+
+function buildPDF(dataUrls) {
+
+  const objects = [];
+
+  const pages = [];
+
+  let objectNumber = 3;
+
+
+  dataUrls.forEach(
+    dataUrl => {
+
+      const binary =
+        dataUrlToBinary(dataUrl);
+
+
+      const dimensions =
+        getJpegDimensions(binary);
+
+
+      const imageObject =
+        objectNumber++;
+
+
+      const contentObject =
+        objectNumber++;
+
+
+      const pageObject =
+        objectNumber++;
+
+
+      objects.push({
+
+        number: imageObject,
+
+        body:
+`<<
+/Type /XObject
+/Subtype /Image
+/Width ${dimensions.width}
+/Height ${dimensions.height}
+/ColorSpace /DeviceRGB
+/BitsPerComponent 8
+/Filter /DCTDecode
+/Length ${binary.length}
+>>
+stream
+${binary}
+endstream`
+
+      });
+
+
+      const pageWidth = 595;
+
+      const pageHeight = 842;
+
+
+      const scale =
+        Math.min(
+          pageWidth / dimensions.width,
+          pageHeight / dimensions.height
+        );
+
+
+      const drawWidth =
+        dimensions.width * scale;
+
+      const drawHeight =
+        dimensions.height * scale;
+
+
+      const x =
+        (pageWidth - drawWidth) / 2;
+
+      const y =
+        (pageHeight - drawHeight) / 2;
+
+
+      const content =
+`q
+${drawWidth} 0 0 ${drawHeight} ${x} ${y} cm
+/Im1 Do
+Q`;
+
+
+      objects.push({
+
+        number: contentObject,
+
+        body:
+`<<
+/Length ${content.length}
+>>
+stream
+${content}
+endstream`
+
+      });
+
+
+      objects.push({
+
+        number: pageObject,
+
+        body:
+`<<
+/Type /Page
+/Parent 2 0 R
+/MediaBox [0 0 ${pageWidth} ${pageHeight}]
+/Resources <<
+/XObject <<
+/Im1 ${imageObject} 0 R
+>>
+>>
+/Contents ${contentObject} 0 R
+>>`
+
+      });
+
+
+      pages.push(
+        `${pageObject} 0 R`
+      );
+
+    }
+  );
+
+
+  objects.unshift({
+
+    number: 2,
+
+    body:
+`<<
+/Type /Pages
+/Count ${pages.length}
+/Kids [${pages.join(" ")}]
+>>`
+
+  });
+
+
+  objects.unshift({
+
+    number: 1,
+
+    body:
+`<<
+/Type /Catalog
+/Pages 2 0 R
+>>`
+
+  });
+
+
+  let pdf =
+    "%PDF-1.3\n";
+
+
+  const offsets = [0];
+
+
+  objects.forEach(
+    object => {
+
+      offsets[object.number] =
+        pdf.length;
+
+
+      pdf +=
+        `${object.number} 0 obj\n`;
+
+
+      pdf +=
+        object.body;
+
+
+      pdf +=
+        "\nendobj\n";
+
+    }
+  );
+
+
+  const xref =
+    pdf.length;
+
+
+  pdf +=
+`xref
+0 ${objectNumber}
+0000000000 65535 f
+`;
+
+
+  for (
+    let i = 1;
+    i < objectNumber;
+    i++
+  ) {
+
+    pdf +=
+      String(
+        offsets[i] || 0
+      )
+      .padStart(10, "0")
+      +
+      " 00000 n\n";
+
+  }
+
+
+  pdf +=
+`trailer
+<<
+/Size ${objectNumber}
+/Root 1 0 R
+>>
+startxref
+${xref}
+%%EOF`;
+
+
+  return pdf;
+
+}
+
+
+function dataUrlToBinary(dataUrl) {
+
+  const base64 =
+    dataUrl.split(",")[1];
+
+  const raw =
+    atob(base64);
+
+
+  let binary = "";
+
+  for (
+    let i = 0;
+    i < raw.length;
+    i++
+  ) {
+
+    binary += raw[i];
+
+  }
+
+
+  return binary;
+
+}
+
+
+function getJpegDimensions(binary) {
+
+  let offset = 2;
+
+
+  while (
+    offset < binary.length
+  ) {
+
+    if (
+      binary.charCodeAt(offset) !== 0xFF
+    ) {
+
+      offset++;
+
+      continue;
+
+    }
+
+
+    const marker =
+      binary.charCodeAt(offset + 1);
+
+
+    const length =
+      (binary.charCodeAt(offset + 2) << 8)
+      +
+      binary.charCodeAt(offset + 3);
+
+
+    if (
+      marker >= 0xC0 &&
+      marker <= 0xC3
+    ) {
+
+      return {
+
+        height:
+          (binary.charCodeAt(offset + 5) << 8)
+          +
+          binary.charCodeAt(offset + 6),
+
+        width:
+          (binary.charCodeAt(offset + 7) << 8)
+          +
+          binary.charCodeAt(offset + 8)
+
+      };
+
+    }
+
+
+    offset +=
+      2 + length;
+
+  }
+
+
+  return {
+    width: 1000,
+    height: 1400
+  };
+
+}
+
+
+
+/* =====================================================
+   SAVE DOCUMENT
+===================================================== */
+
+async function exportDocument() {
+
+  state.documentName =
+    $("documentNameInput")
+      .value
+      .trim()
+      ||
+      "My Document";
+
+
+  if (!state.pages.length) {
+
+    showToast(
+      "No pages to export",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  const documentItem = {
+
+    id:
+      Date.now(),
+
+    name:
+      state.documentName,
+
+    date:
+      new Date().toISOString(),
+
+    favorite:
+      state.favorite,
+
+    pages:
+      state.pages.map(page => ({
+        ...page
+      }))
+
+  };
+
+
+  state.documents.unshift(
+    documentItem
+  );
+
+
+  saveDocuments();
+
+
+  try {
+
+    if (
+      state.exportFormat === "jpg"
+    ) {
+
+      await exportJPG();
+
+    } else {
+
+      await exportPDF();
+
+    }
+
+
+    showToast(
+      "Document exported"
+    );
+
+
+    setTimeout(
+      () => {
+
+        state.pages = [];
+
+        goHome();
+
+      },
+      700
+    );
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    showToast(
+      "Export failed",
+      "!"
+    );
+
+  }
+
+}
+
+
+
+/* =====================================================
+   DOCUMENT LIST
+===================================================== */
+
+function renderRecent() {
+
+  const list =
+    $("recentList");
+
+
+  const recent =
+    state.documents.slice(0, 5);
+
+
+  if (!recent.length) {
+
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📄</div>
+        <strong>No scans yet</strong>
+        <span>
+          Your scanned documents will appear here.
+        </span>
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  list.innerHTML =
+    recent
+      .map(documentCardHTML)
+      .join("");
+
+}
+
+
+function renderDocuments() {
+
+  const list =
+    $("documentsList");
+
+
+  $("documentsCount").textContent =
+    `${state.documents.length} ${
+      state.documents.length === 1
+        ? "document"
+        : "documents"
+    }`;
+
+
+  if (!state.documents.length) {
+
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📄</div>
+        <strong>No documents</strong>
+        <span>
+          Start scanning to create your first document.
+        </span>
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  list.innerHTML =
+    state.documents
+      .map(documentCardHTML)
+      .join("");
+
+}
+
+
+function documentCardHTML(doc) {
+
+  const firstPage =
+    doc.pages &&
+    doc.pages[0];
+
+
+  const image =
+    firstPage
+      ? firstPage.src
+      : "";
+
+
+  const date =
+    new Date(doc.date)
+      .toLocaleDateString();
+
+
+  const favorite =
+    doc.favorite
+      ? "⭐"
+      : "";
+
+
+  return `
+    <div
+      class="document-card"
+      data-id="${doc.id}"
+    >
+
+      <div class="document-thumb">
+        ${
+          image
+            ? `<img src="${image}" alt="">`
+            : "📄"
+        }
+      </div>
+
+      <div class="document-info">
+
+        <strong>
+          ${escapeHTML(doc.name)}
+        </strong>
+
+        <span>
+          ${doc.pages.length} ${
+            doc.pages.length === 1
+              ? "page"
+              : "pages"
+          }
+          •
+          ${date}
+          ${favorite}
+        </span>
+
+      </div>
+
+      <button
+        class="document-menu"
+        data-menu="${doc.id}"
+      >
+        ⋮
+      </button>
+
+    </div>
+  `;
+
+}
+
+
+
+/* =====================================================
+   FAVORITE
+===================================================== */
+
+function toggleFavorite() {
+
+  state.favorite =
+    !state.favorite;
+
+
+  $("favoriteBtn").textContent =
+    state.favorite
+      ? "★"
+      : "☆";
+
+}
+
+
+function toggleSavedFavorite(id) {
+
+  const doc =
+    state.documents.find(
+      x => x.id == id
+    );
+
+
+  if (!doc) {
+
+    return;
+
+  }
+
+
+  doc.favorite =
+    !doc.favorite;
+
+
+  saveDocuments();
+
+  renderDocuments();
+
+  renderRecent();
+
+}
+
+
+
+/* =====================================================
+   SAFE FILENAME
+===================================================== */
+
+function safeFilename(name) {
+
+  return name
+    .replace(/[<>:"/\\|?*]/g, "")
+    .trim()
+    .replace(/\s+/g, "_")
+    .slice(0, 80)
+    ||
+    "WebScan_Document";
+
+}
+
+
+function escapeHTML(text) {
+
+  const div =
+    document.createElement("div");
+
+  div.textContent =
+    text;
+
+  return div.innerHTML;
+
+}
+
+
+
+/* =====================================================
+   TOAST
+===================================================== */
+
+let toastTimer;
+
+
+function showToast(
+  message,
+  icon = "✓"
+) {
+
+  $("toastText").textContent =
+    message;
+
+  $("toastIcon").textContent =
+    icon;
+
+
+  const toast =
+    $("toast");
+
+
+  toast.classList.add("show");
+
+
+  clearTimeout(toastTimer);
+
+
+  toastTimer =
+    setTimeout(
+      () => {
+
+        toast.classList.remove("show");
+
+      },
+      2200
+    );
+
+}
+
+
+
+/* =====================================================
+   EVENT LISTENERS
+===================================================== */
+
+
+/* HOME */
+
+$("scanBtn")
+  .addEventListener(
+    "click",
+    openCamera
+  );
+
+
+$("bottomScanBtn")
+  .addEventListener(
+    "click",
+    openCamera
+  );
+
+
+$("importBtn")
+  .addEventListener(
+    "click",
+    openFilePicker
+  );
+
+
+$("fileInput")
+  .addEventListener(
+    "change",
+    event =>
+      handleFiles(event.target.files)
+  );
+
+
+$("settingsBtn")
+  .addEventListener(
+    "click",
+    goSettings
+  );
+
+
+$("viewAllBtn")
+  .addEventListener(
+    "click",
+    goDocuments
+  );
+
+
+
+/* QUICK */
+
+document
+  .querySelectorAll(".quick-card")
+  .forEach(card => {
+
+    card.addEventListener(
+      "click",
+      () => {
+
+        const action =
+          card.dataset.action;
+
+
+        if (action === "camera") {
+
+          openCamera();
+
+        }
+
+        if (action === "gallery") {
+
+          openFilePicker();
+
+        }
+
+        if (action === "documents") {
+
+          goDocuments();
+
+        }
+
+        if (action === "favorites") {
+
+          goDocuments();
+
+        }
+
+      }
+    );
+
+  });
+
+
+
+/* CAMERA */
+
+$("closeCameraBtn")
+  .addEventListener(
+    "click",
+    goHome
+  );
+
+
+$("retryCameraBtn")
+  .addEventListener(
+    "click",
+    startCamera
+  );
+
+
+$("captureBtn")
+  .addEventListener(
+    "click",
+    capturePhoto
+  );
+
+
+$("finishScanBtn")
+  .addEventListener(
+    "click",
+    finishScan
+  );
+
+
+$("switchCameraBtn")
+  .addEventListener(
+    "click",
+    async () => {
+
+      state.facingMode =
+        state.facingMode === "environment"
+          ? "user"
+          : "environment";
+
+
+      await startCamera();
+
+    }
+  );
+
+
+$("flashBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      state.flash =
+        !state.flash;
+
+
+      $("flashBtn")
+        .classList.toggle(
+          "active",
+          state.flash
+        );
+
+
+      /*
+        Browser camera flash support depends
+        on the device/browser.
+      */
+
+      if (state.stream) {
+
+        const track =
+          state.stream
+            .getVideoTracks()[0];
+
+
+        const capabilities =
+          track.getCapabilities
+            ? track.getCapabilities()
+            : {};
+
+
+        if (
+          capabilities.torch
+        ) {
+
+          track.applyConstraints({
+            advanced: [
+              {
+                torch:
+                  state.flash
+              }
+            ]
+          })
+          .catch(() => {});
+
+        }
+
+      }
+
+    }
+  );
+
+
+$("zoomInBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      state.zoom =
+        Math.min(
+          3,
+          state.zoom + .25
+        );
+
+
+      video.style.transform =
+        `scale(${state.zoom})`;
+
+    }
+  );
+
+
+$("zoomOutBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      state.zoom =
+        Math.max(
+          1,
+          state.zoom - .25
+        );
+
+
+      video.style.transform =
+        `scale(${state.zoom})`;
+
+    }
+  );
+
+
+
+/* EDITOR */
+
+$("editorBackBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      showScreen("camera");
+
+    }
+  );
+
+
+$("editorDoneBtn")
+  .addEventListener(
+    "click",
+    saveEditorChanges
+  );
+
+
+$("saveEditedBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      saveEditorChanges();
+
+      showScreen("camera");
+
+      updatePages();
+
+    }
+  );
+
+
+$("rotateBtn")
+  .addEventListener(
+    "click",
+    rotateImage
+  );
+
+
+$("resetEditBtn")
+  .addEventListener(
+    "click",
+    resetEditor
+  );
+
+
+document
+  .querySelectorAll(".filter-btn")
+  .forEach(btn => {
+
+    btn.addEventListener(
+      "click",
+      () =>
+        applyFilter(
+          btn.dataset.filter
+        )
+    );
+
+  });
+
+
+document
+  .querySelectorAll(".adjust-btn")
+  .forEach(btn => {
+
+    btn.addEventListener(
+      "click",
+      () => {
+
+        if (btn.dataset.tool) {
+
+          activateAdjust(
+            btn.dataset.tool
+          );
+
+        }
+
+      }
+    );
+
+  });
+
+
+
+/* EXPORT */
+
+$("exportBackBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      showScreen("camera");
+
+    }
+  );
+
+
+$("documentNameInput")
+  .addEventListener(
+    "input",
+    event => {
+
+      $("exportName").textContent =
+        event.target.value ||
+        "My Document";
+
+    }
+  );
+
+
+$("favoriteBtn")
+  .addEventListener(
+    "click",
+    toggleFavorite
+  );
+
+
+$("exportBtn")
+  .addEventListener(
+    "click",
+    exportDocument
+  );
+
+
+
+/* DOCUMENTS */
+
+$("documentsScanBtn")
+  .addEventListener(
+    "click",
+    openCamera
+  );
+
+
+$("documentsSearchBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      showToast(
+        "Search coming soon"
+      );
+
+    }
+  );
+
+
+$("documentsList")
+  .addEventListener(
+    "click",
+    event => {
+
+      const menu =
+        event.target.closest(
+          "[data-menu]"
+        );
+
+
+      if (menu) {
+
+        toggleSavedFavorite(
+          menu.dataset.menu
+        );
+
+      }
+
+    }
+  );
+
+
+
+/* SETTINGS */
+
+$("settingsBackBtn")
+  .addEventListener(
+    "click",
+    goHome
+  );
+
+
+$("clearStorageBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      const confirmed =
+        confirm(
+          "Delete all saved WebScan documents?"
+        );
+
+
+      if (!confirmed) {
+
+        return;
+
+      }
+
+
+      localStorage.removeItem(
+        "webscan_documents"
+      );
+
+
+      state.documents = [];
+
+
+      renderRecent();
+
+      renderDocuments();
+
+
+      showToast(
+        "Local data cleared"
+      );
+
+    }
+  );
+
+
+
+/* NAVIGATION */
+
+document
+  .querySelectorAll("[data-nav]")
+  .forEach(btn => {
+
+    btn.addEventListener(
+      "click",
+      () => {
+
+        const nav =
+          btn.dataset.nav;
+
+
+        if (nav === "home") {
+
+          goHome();
+
+        }
+
+        if (nav === "documents") {
+
+          goDocuments();
+
+        }
+
+        if (nav === "favorites") {
+
+          goDocuments();
+
+        }
+
+        if (nav === "settings") {
+
+          goSettings();
+
+        }
+
+      }
+    );
+
+  });
+
+
+
+/* =====================================================
+   KEYBOARD
+===================================================== */
+
+document.addEventListener(
+  "keydown",
+  event => {
+
+    if (
+      event.key === "Escape"
+    ) {
+
+      if (
+        screens.camera.classList.contains("active") ||
+        screens.editor.classList.contains("active")
+      ) {
+
+        goHome();
+
+      }
+
+    }
+
+  }
+);
+
+
+
+/* =====================================================
+   VISIBILITY
+===================================================== */
+
+document.addEventListener(
+  "visibilitychange",
+  () => {
+
+    if (
+      document.hidden
+    ) {
+
+      /*
+        Do not force-stop camera here.
+        Mobile browsers can temporarily hide
+        the page during permission dialogs.
+      */
+
+    }
+
+  }
+);
+
+
+
+/* =====================================================
+   INIT
+===================================================== */
+
+loadDocuments();
+
+showScreen("home");
