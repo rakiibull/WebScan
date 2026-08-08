@@ -1,0 +1,349 @@
+/* =========================================================
+   WebScan Advanced Scanner Engine
+   Auto Edge Detection + Scanner Overlay
+========================================================= */
+
+#wsScannerOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 30;
+  overflow: hidden;
+}
+
+#wsScannerPolygon {
+  fill: rgba(32, 230, 154, 0.08);
+  stroke: #20e69a;
+  stroke-width: 4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+
+  filter:
+    drop-shadow(
+      0 0 6px rgba(32, 230, 154, 0.65)
+    );
+
+  transition:
+    opacity 0.15s ease;
+}
+
+#wsDetectionBadge {
+  position: absolute;
+
+  top: 18px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  z-index: 40;
+
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  min-height: 36px;
+  padding: 8px 14px;
+
+  border-radius: 999px;
+
+  background:
+    rgba(8, 12, 18, 0.78);
+
+  border:
+    1px solid rgba(255, 255, 255, 0.12);
+
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  white-space: nowrap;
+
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.25);
+
+  transition:
+    all 0.25s ease;
+}
+
+#wsDetectionDot {
+  width: 8px;
+  height: 8px;
+
+  flex: 0 0 8px;
+
+  border-radius: 50%;
+
+  background: #ffb020;
+
+  box-shadow:
+    0 0 10px rgba(255, 176, 32, 0.85);
+
+  animation:
+    wsDetectionPulse 1.25s ease-in-out infinite;
+}
+
+#wsDetectionBadge.detected {
+  background:
+    rgba(6, 52, 36, 0.84);
+
+  border-color:
+    rgba(32, 230, 154, 0.35);
+
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.25),
+    0 0 20px rgba(32, 230, 154, 0.08);
+}
+
+#wsDetectionBadge.detected #wsDetectionDot {
+  background: #20e69a;
+
+  box-shadow:
+    0 0 12px rgba(32, 230, 154, 0.95);
+
+  animation: none;
+}
+
+
+/* =========================================================
+   Corner handles
+========================================================= */
+
+.ws-corner-handle {
+  position: absolute;
+
+  width: 18px;
+  height: 18px;
+
+  border-color: #20e69a;
+  border-style: solid;
+
+  filter:
+    drop-shadow(
+      0 0 5px rgba(32, 230, 154, 0.75)
+    );
+}
+
+.ws-corner-tl {
+  border-width: 4px 0 0 4px;
+}
+
+.ws-corner-tr {
+  border-width: 4px 4px 0 0;
+}
+
+.ws-corner-br {
+  border-width: 0 4px 4px 0;
+}
+
+.ws-corner-bl {
+  border-width: 0 0 4px 4px;
+}
+
+
+/* =========================================================
+   Capture feedback
+========================================================= */
+
+.ws-capture-flash {
+  position: absolute;
+  inset: 0;
+
+  z-index: 50;
+
+  background: #ffffff;
+
+  pointer-events: none;
+
+  opacity: 0;
+
+  animation:
+    wsCameraFlash 220ms ease-out;
+}
+
+.ws-capture-processing {
+  position: absolute;
+
+  left: 50%;
+  bottom: 105px;
+
+  transform:
+    translateX(-50%);
+
+  z-index: 45;
+
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  padding: 10px 15px;
+
+  border-radius: 999px;
+
+  background:
+    rgba(8, 12, 18, 0.84);
+
+  border:
+    1px solid rgba(255, 255, 255, 0.12);
+
+  color: #ffffff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+
+  box-shadow:
+    0 10px 35px rgba(0, 0, 0, 0.35);
+}
+
+.ws-processing-spinner {
+  width: 15px;
+  height: 15px;
+
+  border-radius: 50%;
+
+  border:
+    2px solid rgba(255, 255, 255, 0.25);
+
+  border-top-color:
+    #20e69a;
+
+  animation:
+    wsSpinner 0.7s linear infinite;
+}
+
+
+/* =========================================================
+   Editor scanner tools
+========================================================= */
+
+.ws-auto-crop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  margin-left: 7px;
+
+  padding: 4px 8px;
+
+  border-radius: 999px;
+
+  background:
+    rgba(32, 230, 154, 0.12);
+
+  color:
+    #20e69a;
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.ws-auto-crop-badge::before {
+  content: "✓";
+}
+
+
+/* =========================================================
+   Animations
+========================================================= */
+
+@keyframes wsDetectionPulse {
+
+  0% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+
+
+@keyframes wsCameraFlash {
+
+  0% {
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 0.75;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+
+@keyframes wsSpinner {
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* =========================================================
+   Mobile
+========================================================= */
+
+@media (max-width: 600px) {
+
+  #wsDetectionBadge {
+    top: 12px;
+
+    min-height: 34px;
+
+    padding:
+      7px 12px;
+
+    font-size: 12px;
+  }
+
+  #wsScannerPolygon {
+    stroke-width: 3;
+  }
+
+  .ws-corner-handle {
+    width: 15px;
+    height: 15px;
+  }
+
+  .ws-capture-processing {
+    bottom: 95px;
+
+    font-size: 12px;
+
+    padding:
+      9px 13px;
+  }
+}
+
+
+/* =========================================================
+   Reduced motion
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+  #wsDetectionDot,
+  .ws-processing-spinner {
+    animation: none;
+  }
+
+}
