@@ -5,435 +5,964 @@
 
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
   >
 
-  <meta
-    name="theme-color"
-    content="#111827"
-  >
+  <meta name="theme-color" content="#080b12">
 
-  <title>WebScan - Smart Document Scanner</title>
+  <title>WebScan Pro</title>
 
-  <!-- Font Awesome -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-  >
-
-  <!-- Cropper -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css"
-  >
-
-  <link
-    rel="stylesheet"
-    href="style.css"
-  >
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-  <main class="app">
+<div id="app">
 
-    <!-- =====================================================
-         CAMERA
-         ===================================================== -->
+  <!-- =========================
+       HOME SCREEN
+  ========================== -->
 
-    <section
-      id="cameraSection"
-      class="screen camera-screen"
-    >
+  <section id="homeScreen" class="screen active">
 
-      <header class="topbar">
-        <div>
-          <h1>
-            <i class="fa-solid fa-scanner-touchscreen"></i>
-            WebScan
-          </h1>
+    <header class="home-header">
 
-          <p>Smart Document Scanner</p>
+      <div>
+        <div class="brand">
+          <span class="brand-icon">▣</span>
+          WebScan
+          <span class="pro-badge">PRO</span>
         </div>
 
-        <div
-          id="pageCount"
-          class="page-count"
-        >
-          <i class="fa-solid fa-copy"></i>
-          Pages: 0
+        <div class="subtitle">
+          Smart document scanner
         </div>
-      </header>
+      </div>
+
+      <button
+        id="settingsBtn"
+        class="circle-btn"
+        aria-label="Settings"
+      >
+        ⚙
+      </button>
+
+    </header>
 
 
-      <div class="camera-wrapper">
+    <main class="home-content">
 
-        <video
-          id="video"
-          autoplay
-          playsinline
-          muted
-        ></video>
-
-        <!-- Real-time scanner overlay -->
-        <canvas
-          id="scannerOverlay"
-          class="scanner-overlay"
-        ></canvas>
+      <div class="welcome">
+        <span>Good afternoon 👋</span>
+        <h1>What do you want to scan?</h1>
+      </div>
 
 
-        <!-- Camera loading -->
-        <div
-          id="cameraPlaceholder"
-          class="camera-placeholder"
+      <!-- MAIN ACTIONS -->
+
+      <div class="main-actions">
+
+        <button
+          id="scanBtn"
+          class="scan-action primary"
         >
-          <div class="camera-loader">
-            <i class="fa-solid fa-camera"></i>
-          </div>
+          <span class="action-icon">▣</span>
 
-          <p>Starting camera...</p>
-        </div>
-
-
-        <!-- Detection status -->
-        <div
-          id="detectionStatus"
-          class="detection-status"
-        >
-          <span
-            id="detectionDot"
-            class="detection-dot"
-          ></span>
-
-          <span id="detectionText">
-            Looking for document...
+          <span>
+            <strong>Scan Document</strong>
+            <small>Use your camera</small>
           </span>
+
+          <span class="action-arrow">›</span>
+        </button>
+
+
+        <button
+          id="importBtn"
+          class="scan-action secondary"
+        >
+          <span class="action-icon">▧</span>
+
+          <span>
+            <strong>Import Photo</strong>
+            <small>Choose from gallery</small>
+          </span>
+
+          <span class="action-arrow">›</span>
+        </button>
+
+      </div>
+
+
+      <!-- QUICK ACTIONS -->
+
+      <div class="section-title">
+        <span>Quick tools</span>
+      </div>
+
+      <div class="quick-grid">
+
+        <button class="quick-card" data-action="camera">
+          <span>📷</span>
+          <strong>Camera</strong>
+          <small>New scan</small>
+        </button>
+
+        <button class="quick-card" data-action="gallery">
+          <span>🖼️</span>
+          <strong>Gallery</strong>
+          <small>Import images</small>
+        </button>
+
+        <button class="quick-card" data-action="documents">
+          <span>📁</span>
+          <strong>Documents</strong>
+          <small>Saved scans</small>
+        </button>
+
+        <button class="quick-card" data-action="favorites">
+          <span>⭐</span>
+          <strong>Favorites</strong>
+          <small>Starred files</small>
+        </button>
+
+      </div>
+
+
+      <!-- RECENT -->
+
+      <div class="section-heading-row">
+
+        <div class="section-title">
+          Recent scans
         </div>
 
+        <button
+          id="viewAllBtn"
+          class="text-btn"
+        >
+          View all
+        </button>
 
-        <!-- Scanner guide -->
-        <div class="scanner-guide">
+      </div>
 
-          <div class="guide-corner top-left"></div>
-          <div class="guide-corner top-right"></div>
-          <div class="guide-corner bottom-left"></div>
-          <div class="guide-corner bottom-right"></div>
 
-          <div class="guide-text">
-            Place your document inside the frame
-          </div>
+      <div id="recentList" class="recent-list">
+
+        <div class="empty-state">
+
+          <div class="empty-icon">📄</div>
+
+          <strong>No scans yet</strong>
+
+          <span>
+            Your scanned documents will appear here.
+          </span>
 
         </div>
 
       </div>
 
-
-      <!-- Status -->
-      <div
-        id="status"
-        class="status"
-      ></div>
+    </main>
 
 
-      <!-- Main controls -->
-      <div
-        id="mainControls"
-        class="controls"
+    <!-- BOTTOM NAV -->
+
+    <nav class="bottom-nav">
+
+      <button class="nav-item active" data-nav="home">
+        <span>⌂</span>
+        <small>Home</small>
+      </button>
+
+      <button class="nav-item" data-nav="documents">
+        <span>▤</span>
+        <small>Scans</small>
+      </button>
+
+      <button
+        id="bottomScanBtn"
+        class="nav-scan"
+        aria-label="Scan"
       >
+        +
+      </button>
 
-        <button
-          id="captureBtn"
-          class="capture-button"
-          type="button"
-          disabled
-        >
-          <span class="capture-inner"></span>
-        </button>
+      <button class="nav-item" data-nav="favorites">
+        <span>☆</span>
+        <small>Favorites</small>
+      </button>
 
-        <button
-          id="pdfBtn"
-          class="secondary-button"
-          type="button"
-          hidden
-        >
-          <i class="fa-solid fa-file-pdf"></i>
-          Create PDF
-        </button>
+      <button class="nav-item" data-nav="settings">
+        <span>⚙</span>
+        <small>Settings</small>
+      </button>
 
+    </nav>
+
+  </section>
+
+
+
+  <!-- =========================
+       CAMERA SCREEN
+  ========================== -->
+
+  <section id="cameraScreen" class="screen">
+
+    <header class="camera-header">
+
+      <button
+        id="closeCameraBtn"
+        class="circle-btn glass"
+      >
+        ‹
+      </button>
+
+      <div class="camera-title">
+        <strong>Scan Document</strong>
+        <span id="scanPageLabel">Page 1</span>
       </div>
 
+      <button
+        id="cameraSettingsBtn"
+        class="circle-btn glass"
+      >
+        ⋮
+      </button>
 
-      <!-- Gallery -->
-      <div
-        id="gallery"
-        class="gallery"
-      ></div>
-
-    </section>
-
-
-    <!-- =====================================================
-         CROP
-         ===================================================== -->
-
-    <section
-      id="cropSection"
-      class="screen crop-screen"
-      hidden
-    >
-
-      <header class="editor-header">
-
-        <button
-          id="cancelCropBtn"
-          class="icon-button"
-          type="button"
-        >
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-
-        <h2>Adjust Document</h2>
-
-        <div></div>
-
-      </header>
+    </header>
 
 
-      <div class="crop-container">
+    <div class="camera-view">
 
-        <img
-          id="cropImage"
-          alt="Document preview"
-        >
+      <video
+        id="video"
+        autoplay
+        playsinline
+        muted
+      ></video>
 
-      </div>
-
-
-      <div
-        id="cropControls"
-        class="editor-controls"
+      <canvas
+        id="cameraCanvas"
         hidden
-      >
-
-        <button
-          id="applyCropBtn"
-          class="primary-button"
-          type="button"
-        >
-          <i class="fa-solid fa-check"></i>
-          Continue
-        </button>
-
-      </div>
-
-    </section>
+      ></canvas>
 
 
-    <!-- =====================================================
-         FILTER
-         ===================================================== -->
+      <!-- DARK OVERLAY -->
 
-    <section
-      id="filterSection"
-      class="screen filter-screen"
-      hidden
-    >
+      <div class="scanner-overlay">
 
-      <header class="editor-header">
+        <div class="scan-frame">
 
-        <button
-          id="backToCropBtn"
-          class="icon-button"
-          type="button"
-        >
-          <i class="fa-solid fa-arrow-left"></i>
-        </button>
+          <span class="corner top-left"></span>
+          <span class="corner top-right"></span>
+          <span class="corner bottom-left"></span>
+          <span class="corner bottom-right"></span>
 
-        <h2>Enhance Scan</h2>
+          <div class="scan-line"></div>
 
-        <div></div>
+        </div>
 
-      </header>
-
-
-      <div class="filter-preview">
-
-        <canvas
-          id="filterCanvas"
-        ></canvas>
+        <div class="scan-hint">
+          Align the document inside the frame
+        </div>
 
       </div>
 
 
       <div
-        id="filterControls"
-        class="filter-controls"
-        hidden
+        id="cameraLoading"
+        class="camera-loading"
       >
-
-        <button
-          class="filter-btn"
-          data-filter="original"
-          type="button"
-        >
-          <span>Original</span>
-        </button>
-
-        <button
-          class="filter-btn active"
-          data-filter="magic"
-          type="button"
-        >
-          <span>Magic Color</span>
-        </button>
-
-        <button
-          class="filter-btn"
-          data-filter="bw"
-          type="button"
-        >
-          <span>B&W</span>
-        </button>
-
-        <button
-          id="saveFilterBtn"
-          class="primary-button"
-          type="button"
-        >
-          <i class="fa-solid fa-check"></i>
-          Save Page
-        </button>
-
+        <div class="spinner"></div>
+        <span>Starting camera...</span>
       </div>
 
-    </section>
 
+      <div
+        id="cameraError"
+        class="camera-error hidden"
+      >
+        <div class="error-icon">!</div>
 
-    <!-- =====================================================
-         ERROR
-         ===================================================== -->
+        <strong>Camera unavailable</strong>
 
-    <div
-      id="errorMessage"
-      class="error-modal"
-      hidden
-    >
+        <span>
+          Please allow camera permission and try again.
+        </span>
 
-      <div class="error-card">
-
-        <div class="error-icon">
-          <i class="fa-solid fa-triangle-exclamation"></i>
-        </div>
-
-        <h3 id="errorTitle">
-          Something went wrong
-        </h3>
-
-        <p id="errorText"></p>
-
-        <button
-          id="dismissErrorBtn"
-          class="primary-button"
-          type="button"
-        >
-          OK
+        <button id="retryCameraBtn">
+          Try Again
         </button>
+      </div>
+
+
+      <!-- CAMERA STATUS -->
+
+      <div class="camera-status">
+
+        <span class="status-pill">
+          <i></i>
+          <span id="cameraStatusText">
+            Ready to scan
+          </span>
+        </span>
 
       </div>
 
     </div>
 
 
-    <!-- =====================================================
-         PDF MODAL
-         ===================================================== -->
+    <!-- CAMERA TOOLBAR -->
 
-    <div
-      id="pdfNameModal"
-      class="modal-backdrop"
-      hidden
-    >
+    <div class="camera-toolbar">
 
-      <div class="modal-card">
+      <button
+        id="flashBtn"
+        class="tool-btn"
+      >
+        <span>⚡</span>
+        <small>Flash</small>
+      </button>
 
-        <button
-          id="closePdfModalBtn"
-          class="modal-close"
-          type="button"
-        >
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+      <button
+        id="zoomOutBtn"
+        class="tool-btn"
+      >
+        <span>−</span>
+        <small>Zoom</small>
+      </button>
 
-        <h3>Save PDF</h3>
 
-        <p>
-          Enter a name for your document.
-        </p>
+      <button
+        id="captureBtn"
+        class="capture-btn"
+      >
+        <span></span>
+      </button>
+
+
+      <button
+        id="zoomInBtn"
+        class="tool-btn"
+      >
+        <span>+</span>
+        <small>Zoom</small>
+      </button>
+
+
+      <button
+        id="switchCameraBtn"
+        class="tool-btn"
+      >
+        <span>↻</span>
+        <small>Flip</small>
+      </button>
+
+    </div>
+
+
+    <!-- PAGES -->
+
+    <div class="camera-pages">
+
+      <div class="pages-title">
+        <strong>Pages</strong>
+
+        <span id="pageCount">
+          0 pages
+        </span>
+      </div>
+
+      <div
+        id="pageStrip"
+        class="page-strip"
+      ></div>
+
+    </div>
+
+
+    <div class="camera-bottom-actions">
+
+      <button
+        id="finishScanBtn"
+        class="finish-btn"
+      >
+        Done
+      </button>
+
+    </div>
+
+  </section>
+
+
+
+  <!-- =========================
+       EDITOR SCREEN
+  ========================== -->
+
+  <section id="editorScreen" class="screen">
+
+    <header class="editor-header">
+
+      <button
+        id="editorBackBtn"
+        class="circle-btn"
+      >
+        ‹
+      </button>
+
+      <div>
+        <strong>Edit Scan</strong>
+        <span id="editorPageLabel">
+          Page 1
+        </span>
+      </div>
+
+      <button
+        id="editorDoneBtn"
+        class="done-text-btn"
+      >
+        Done
+      </button>
+
+    </header>
+
+
+    <main class="editor-main">
+
+      <div class="editor-preview">
+
+        <canvas id="editorCanvas"></canvas>
+
+      </div>
+
+
+      <!-- FILTERS -->
+
+      <div class="editor-section">
+
+        <div class="editor-section-title">
+          Filters
+        </div>
+
+        <div class="filter-row">
+
+          <button
+            class="filter-btn active"
+            data-filter="original"
+          >
+            Original
+          </button>
+
+          <button
+            class="filter-btn"
+            data-filter="auto"
+          >
+            Auto
+          </button>
+
+          <button
+            class="filter-btn"
+            data-filter="bw"
+          >
+            B&W
+          </button>
+
+          <button
+            class="filter-btn"
+            data-filter="gray"
+          >
+            Gray
+          </button>
+
+          <button
+            class="filter-btn"
+            data-filter="document"
+          >
+            Document
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <!-- TOOLS -->
+
+      <div class="editor-section">
+
+        <div class="editor-section-title">
+          Adjust
+        </div>
+
+        <div class="adjust-row">
+
+          <button
+            class="adjust-btn"
+            data-tool="brightness"
+          >
+            <span>☀</span>
+            <small>Brightness</small>
+          </button>
+
+          <button
+            class="adjust-btn"
+            data-tool="contrast"
+          >
+            <span>◐</span>
+            <small>Contrast</small>
+          </button>
+
+          <button
+            id="rotateBtn"
+            class="adjust-btn"
+          >
+            <span>↻</span>
+            <small>Rotate</small>
+          </button>
+
+          <button
+            id="resetEditBtn"
+            class="adjust-btn"
+          >
+            <span>↺</span>
+            <small>Reset</small>
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <!-- SLIDER -->
+
+      <div
+        id="adjustSliderBox"
+        class="slider-box hidden"
+      >
+
+        <div class="slider-header">
+
+          <span id="sliderLabel">
+            Brightness
+          </span>
+
+          <span id="sliderValue">
+            0
+          </span>
+
+        </div>
 
         <input
-          id="pdfNameInput"
-          type="text"
-          value="WebScan_Document"
-          autocomplete="off"
+          id="adjustSlider"
+          type="range"
+          min="-100"
+          max="100"
+          value="0"
         >
 
-        <div class="modal-actions">
+      </div>
+
+    </main>
+
+
+    <div class="editor-footer">
+
+      <button
+        id="saveEditedBtn"
+        class="primary-wide-btn"
+      >
+        Save Changes
+      </button>
+
+    </div>
+
+  </section>
+
+
+
+  <!-- =========================
+       EXPORT SCREEN
+  ========================== -->
+
+  <section id="exportScreen" class="screen">
+
+    <header class="editor-header">
+
+      <button
+        id="exportBackBtn"
+        class="circle-btn"
+      >
+        ‹
+      </button>
+
+      <div>
+        <strong>Export Document</strong>
+        <span>Ready to save</span>
+      </div>
+
+      <div></div>
+
+    </header>
+
+
+    <main class="export-main">
+
+      <div class="document-preview-card">
+
+        <div class="preview-icon">
+          📄
+        </div>
+
+        <div>
+
+          <strong id="exportName">
+            My Document
+          </strong>
+
+          <span id="exportPages">
+            1 page
+          </span>
+
+        </div>
+
+        <button
+          id="favoriteBtn"
+          class="favorite-btn"
+        >
+          ☆
+        </button>
+
+      </div>
+
+
+      <div class="export-section">
+
+        <label>
+          Document name
+        </label>
+
+        <input
+          id="documentNameInput"
+          type="text"
+          placeholder="My Document"
+          maxlength="80"
+        >
+
+      </div>
+
+
+      <div class="export-section">
+
+        <label>
+          Export format
+        </label>
+
+        <div class="format-grid">
 
           <button
-            id="cancelPdfBtn"
-            class="secondary-button"
-            type="button"
+            class="format-btn active"
+            data-format="pdf"
           >
-            Cancel
+            <strong>PDF</strong>
+            <span>Best for documents</span>
           </button>
 
           <button
-            id="confirmPdfBtn"
-            class="primary-button"
-            type="button"
+            class="format-btn"
+            data-format="jpg"
           >
-            <i class="fa-solid fa-file-pdf"></i>
-            Save PDF
+            <strong>JPG</strong>
+            <span>Image format</span>
           </button>
 
         </div>
 
       </div>
 
-    </div>
+
+      <div class="export-section">
+
+        <label>
+          Quality
+        </label>
+
+        <div class="quality-row">
+
+          <button
+            class="quality-btn"
+            data-quality="low"
+          >
+            Small
+          </button>
+
+          <button
+            class="quality-btn active"
+            data-quality="medium"
+          >
+            Standard
+          </button>
+
+          <button
+            class="quality-btn"
+            data-quality="high"
+          >
+            High
+          </button>
+
+        </div>
+
+      </div>
 
 
-    <!-- Capture flash -->
+      <div class="export-info">
+
+        <span>✓</span>
+
+        <p>
+          Your document will be saved locally on this device.
+        </p>
+
+      </div>
+
+    </main>
+
+
+    <footer class="export-footer">
+
+      <button
+        id="exportBtn"
+        class="primary-wide-btn"
+      >
+        Export Document
+      </button>
+
+    </footer>
+
+  </section>
+
+
+
+  <!-- =========================
+       DOCUMENTS SCREEN
+  ========================== -->
+
+  <section id="documentsScreen" class="screen">
+
+    <header class="list-header">
+
+      <div>
+        <strong>My Scans</strong>
+        <span id="documentsCount">
+          0 documents
+        </span>
+      </div>
+
+      <button
+        id="documentsSearchBtn"
+        class="circle-btn"
+      >
+        ⌕
+      </button>
+
+    </header>
+
+
     <div
-      id="flashEffect"
-      class="flash-effect"
+      id="documentsList"
+      class="documents-list"
     ></div>
 
-  </main>
+
+    <nav class="bottom-nav">
+
+      <button class="nav-item" data-nav="home">
+        <span>⌂</span>
+        <small>Home</small>
+      </button>
+
+      <button class="nav-item active">
+        <span>▤</span>
+        <small>Scans</small>
+      </button>
+
+      <button
+        class="nav-scan"
+        id="documentsScanBtn"
+      >
+        +
+      </button>
+
+      <button class="nav-item" data-nav="favorites">
+        <span>☆</span>
+        <small>Favorites</small>
+      </button>
+
+      <button class="nav-item" data-nav="settings">
+        <span>⚙</span>
+        <small>Settings</small>
+      </button>
+
+    </nav>
+
+  </section>
 
 
-  <!-- OpenCV -->
-  <script
-    async
-    src="https://docs.opencv.org/4.x/opencv.js"
-    onload="onOpenCvReady()"
-  ></script>
+
+  <!-- =========================
+       SETTINGS
+  ========================== -->
+
+  <section id="settingsScreen" class="screen">
+
+    <header class="list-header">
+
+      <div>
+        <strong>Settings</strong>
+        <span>WebScan preferences</span>
+      </div>
+
+      <button
+        id="settingsBackBtn"
+        class="circle-btn"
+      >
+        ‹
+      </button>
+
+    </header>
 
 
-  <!-- Cropper -->
-  <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"
-  ></script>
+    <main class="settings-list">
+
+      <div class="settings-group">
+
+        <div class="settings-group-title">
+          Appearance
+        </div>
+
+        <button class="setting-row">
+
+          <span class="setting-icon">◐</span>
+
+          <span class="setting-content">
+            <strong>Dark Mode</strong>
+            <small>Use dark interface</small>
+          </span>
+
+          <span class="toggle active">
+            <i></i>
+          </span>
+
+        </button>
+
+      </div>
 
 
-  <!-- jsPDF -->
-  <script
-    src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
-  ></script>
+      <div class="settings-group">
+
+        <div class="settings-group-title">
+          Scanner
+        </div>
+
+        <button class="setting-row">
+
+          <span class="setting-icon">✦</span>
+
+          <span class="setting-content">
+            <strong>Auto Capture</strong>
+            <small>Automatically capture documents</small>
+          </span>
+
+          <span class="toggle">
+            <i></i>
+          </span>
+
+        </button>
 
 
-  <!-- App -->
-  <script src="script.js"></script>
+        <button class="setting-row">
+
+          <span class="setting-icon">▣</span>
+
+          <span class="setting-content">
+            <strong>Show Scan Frame</strong>
+            <small>Display document guide</small>
+          </span>
+
+          <span class="toggle active">
+            <i></i>
+          </span>
+
+        </button>
+
+      </div>
+
+
+      <div class="settings-group">
+
+        <div class="settings-group-title">
+          Storage
+        </div>
+
+        <button
+          id="clearStorageBtn"
+          class="setting-row danger-row"
+        >
+
+          <span class="setting-icon">♲</span>
+
+          <span class="setting-content">
+            <strong>Clear Local Data</strong>
+            <small>Delete saved WebScan documents</small>
+          </span>
+
+          <span>›</span>
+
+        </button>
+
+      </div>
+
+
+      <div class="app-version">
+        WebScan Pro<br>
+        Version 1.0
+      </div>
+
+    </main>
+
+  </section>
+
+
+
+  <!-- =========================
+       TOAST
+  ========================== -->
+
+  <div
+    id="toast"
+    class="toast"
+  >
+    <span id="toastIcon">✓</span>
+    <span id="toastText">Done</span>
+  </div>
+
+
+  <!-- HIDDEN FILE INPUT -->
+
+  <input
+    id="fileInput"
+    type="file"
+    accept="image/*"
+    multiple
+    hidden
+  >
+
+</div>
+
+
+<script src="script.js"></script>
 
 </body>
 </html>
