@@ -475,6 +475,14 @@
           : "Scan captured",
         "ready"
       );
+
+      // "To Word" mode automatically runs OCR after the corrected scan.
+      // The OCR engine is loaded only when this mode is used.
+      if ((mode === "To Word" || mode === "Text") && window.WebScanOCR) {
+        setStatus("Reading document text…");
+        await window.WebScanOCR.run(result, "eng+ben");
+        setStatus("OCR completed", "ready");
+      }
     } catch (error) {
       console.error(error);
       setStatus("Scan failed — try again", "error");
