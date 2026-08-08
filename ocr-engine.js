@@ -8,6 +8,13 @@
 
   let tesseractPromise = null;
 
+  /*
+    Page whose text the panel is showing. Declared here because the UI
+    is built before runOCR is ever called, and its input handler needs
+    to reach this binding.
+  */
+  let activePage = null;
+
   function loadTesseract() {
     if (window.Tesseract) return Promise.resolve(window.Tesseract);
     if (tesseractPromise) return tesseractPromise;
@@ -121,6 +128,18 @@
 
     document.getElementById("wsOCRClose").onclick = () => panel.classList.remove("show");
 
+    /*
+      Edits to the recognised text are saved as they are typed, so
+      corrections carry through to the searchable PDF and the saved
+      document rather than being lost when the panel closes.
+    */
+    document.getElementById("wsOCRText").addEventListener("input", (event) => {
+      if (!activePage) return;
+
+      activePage.ocrText = event.target.value;
+      activePage.ocrAt = new Date().toISOString();
+    });
+
     document.getElementById("wsOCRCopy").onclick = async () => {
       const text = document.getElementById("wsOCRText").value;
       if (!text.trim()) return;
@@ -158,8 +177,28 @@
     }
   }
 
-  async function runOCR(source, languages = "eng+ben") {
+  function bindPage(page) {
+    activePage = page || null;
+
+    const textBox = document.getElementById("wsOCRText");
+    if (!textBox) return;
+
+    // Restore previously recognised text instead of re-running OCR.
+    textBox.value = activePage?.ocrText || "";
+  }
+
+  function persist(text, languages) {
+    if (!activePage) return;
+
+    activePage.ocrText = text;
+    activePage.ocrLang = languages || activePage.ocrLang || "";
+    activePage.ocrAt = new Date().toISOString();
+  }
+
+  async function runOCR(source, languages = "eng+ben", page = null) {
     openPanel();
+
+    if (page) bindPage(page);
 
     const textBox = document.getElementById("wsOCRText");
     textBox.value = "";
@@ -184,10 +223,13 @@
         }
       });
 
-      const text = result?.data?.text || "";
-      textBox.value = text.trim();
+      const text = (result?.data?.text || "").trim();
+      textBox.value = text;
 
-      if (text.trim()) {
+      // Stored on the page so it survives closing the panel.
+      persist(text, languages);
+
+      if (text) {
         setOCRStatus("OCR completed", 100);
       } else {
         setOCRStatus("No readable text was detected.", 100);
@@ -204,10 +246,30 @@
     }
   }
 
+  /*
+    Shows stored text for a page without re-running recognition, so
+    reopening a scanned page is instant and previous corrections stay.
+  */
+  function showForPage(page) {
+    openPanel();
+    bindPage(page);
+
+    if (page?.ocrText) {
+      setOCRStatus(
+        `Saved text${page.ocrLang ? ` (${page.ocrLang})` : ""}`,
+        100
+      );
+    } else {
+      setOCRStatus("No text recognised yet — run OCR to extract.", 0);
+    }
+  }
+
   window.WebScanOCR = {
     load: loadTesseract,
     run: runOCR,
-    open: openPanel
+    open: openPanel,
+    showForPage,
+    bindPage
   };
 
   createOCRUI();

@@ -542,7 +542,15 @@ function createPage(data, corners = null) {
 
     exposure: 0,
 
-    rotation: 0
+    rotation: 0,
+
+    // OCR results live with the page, so they survive reordering,
+    // export and saving rather than being lost when the panel closes.
+    ocrText: "",
+
+    ocrLang: "",
+
+    ocrAt: null
 
   };
 
@@ -1727,6 +1735,8 @@ async function exportPDF() {
 
   const images = [];
 
+  const texts = [];
+
 
   for (
     const page of state.pages
@@ -1736,16 +1746,49 @@ async function exportPDF() {
       await createProcessedData(page)
     );
 
+    // Recognised text rides along so the export is searchable.
+    texts.push(page.ocrText || "");
+
+  }
+
+
+  /*
+    The Unicode font is only fetched when a page actually has text, and
+    a failure is non-fatal: export continues with the built-in font,
+    which still handles Latin.
+  */
+  let embeddedFont = null;
+
+
+  if (
+    texts.some(text => text.trim()) &&
+    window.WebScanPdfFont
+  ) {
+
+    try {
+
+      embeddedFont =
+        await window.WebScanPdfFont.load();
+
+    } catch (error) {
+
+      console.warn(
+        "Unicode font unavailable; falling back to Latin-only text layer.",
+        error
+      );
+
+    }
+
   }
 
 
   const pdf =
-    buildPDF(images);
+    buildPDF(images, texts, embeddedFont);
 
 
   const blob =
     new Blob(
-      [pdf],
+      [pdfStringToBytes(pdf)],
       {
         type: "application/pdf"
       }
@@ -1781,17 +1824,189 @@ async function exportPDF() {
 }
 
 
-function buildPDF(dataUrls) {
+/*
+  Builds the PDF.
+
+  `ocrTexts[i]` is optional recognised text for page i. When present it
+  is drawn in invisible render mode over the image, which is what makes
+  the PDF searchable and selectable while looking unchanged.
+*/
+/*
+  Builds the PDF.
+
+  `ocrTexts[i]` is optional recognised text for page i. When present it
+  is drawn in invisible render mode over the image, which is what makes
+  the PDF searchable and selectable while looking unchanged.
+
+  `embeddedFont` is an optional parsed Unicode font. With it, any script
+  the font covers -- Bengali included -- goes into the search layer via
+  a composite Identity-H font. Without it the layer falls back to the
+  built-in Helvetica, which can only carry Latin text.
+*/
+function buildPDF(dataUrls, ocrTexts = [], embeddedFont = null) {
 
   const objects = [];
 
   const pages = [];
 
+  const fontApi =
+    window.WebScanPdfFont;
+
+
+  // Glyphs actually used, so only those widths are written out.
+  const usedGlyphs = new Set();
+
+
+  // Pre-encode each page's text to learn whether anything is renderable.
+  const encodedPages =
+    dataUrls.map((_, index) => {
+
+      const raw =
+        (ocrTexts[index] || "").trim();
+
+
+      if (!raw) {
+
+        return null;
+
+      }
+
+
+      if (embeddedFont && fontApi) {
+
+        /*
+          Each line becomes a list of runs. A run is either Latin (drawn
+          with the built-in font) or Unicode (drawn with the embedded
+          font), because neither font covers both scripts on its own.
+        */
+        const lines =
+          raw
+            .split("\n")
+            .map(line => line.trim())
+            .filter(Boolean)
+            .map(line => {
+
+              return fontApi
+                .splitRuns(embeddedFont, line)
+                .map(run => {
+
+                  if (run.kind === "latin") {
+
+                    return {
+                      unicode: false,
+                      text: run.text
+                    };
+
+                  }
+
+
+                  const encoded =
+                    fontApi.encodeText(embeddedFont, run.text);
+
+
+                  encoded.glyphs.forEach(
+                    glyph => usedGlyphs.add(glyph)
+                  );
+
+
+                  return {
+                    unicode: true,
+                    text: encoded.hex
+                  };
+
+                })
+                .filter(run => run.text.length);
+
+            })
+            .filter(runs => runs.length);
+
+
+        return lines.length
+          ? { mixed: true, lines }
+          : null;
+
+      }
+
+
+      // Latin-only fallback.
+      const filtered =
+        pdfEncodableText(raw);
+
+
+      if (!filtered) {
+
+        return null;
+
+      }
+
+
+      return {
+        mixed: true,
+        lines:
+          filtered
+            .split("\n")
+            .filter(line => line.trim())
+            .map(line => [{ unicode: false, text: line }])
+      };
+
+    });
+
+
+  const hasText =
+    encodedPages.some(Boolean);
+
+
+  const useEmbedded =
+    hasText &&
+    !!embeddedFont &&
+    !!fontApi &&
+    usedGlyphs.size > 0;
+
+
+  /*
+    Object 3 is reserved for the shared font when any page has text, so
+    every page can reference a fixed number. Page objects then start
+    after whatever the font structure consumes.
+  */
+  const FONT_OBJECT_NUMBER = 3;
+
   let objectNumber = 3;
+
+  let fontObjects = [];
+
+  // Object number of the built-in Latin font, allocated after the
+  // composite font when both are present.
+  let latinObjectNumber = null;
+
+
+  if (useEmbedded) {
+
+    // A composite font needs five objects, not one.
+    const built =
+      fontApi.buildFontObjects(
+        embeddedFont,
+        usedGlyphs,
+        FONT_OBJECT_NUMBER
+      );
+
+
+    fontObjects = built.objects;
+
+    latinObjectNumber = built.nextNumber;
+
+    objectNumber = built.nextNumber + 1;
+
+  } else if (hasText) {
+
+    latinObjectNumber = FONT_OBJECT_NUMBER;
+
+    objectNumber = 4;
+
+  }
 
 
   dataUrls.forEach(
-    dataUrl => {
+    (dataUrl, pageIndex) => {
 
       const binary =
         dataUrlToBinary(dataUrl);
@@ -1861,11 +2076,91 @@ endstream`
         (pageHeight - drawHeight) / 2;
 
 
+      /*
+        Text render mode 3 (Tr) draws nothing but still registers the
+        glyphs, so viewers can search and select the words while only
+        the scanned image is visible.
+      */
+      const encoded =
+        encodedPages[pageIndex];
+
+
+      let textLayer = "";
+
+
+      if (encoded) {
+
+        const lines = encoded.lines;
+
+
+        // Distributed down the page so selection order roughly follows
+        // the document. Exact glyph placement would need per-word boxes.
+        const lineHeight =
+          Math.min(14, (drawHeight - 20) / lines.length);
+
+
+        const parts = ["BT", "3 Tr"];
+
+
+        lines.forEach((runs, i) => {
+
+          const textY =
+            y + drawHeight - 12 - (i * lineHeight);
+
+
+          if (textY < y) {
+
+            return;
+
+          }
+
+
+          parts.push(
+            `1 0 0 1 ${(x + 8).toFixed(2)} ${textY.toFixed(2)} Tm`
+          );
+
+
+          /*
+            Runs are drawn in sequence on the same line. Tj advances the
+            text position automatically, so consecutive runs follow each
+            other without needing measured offsets.
+
+            F1 is the embedded Unicode font, F2 the built-in Latin one.
+          */
+          runs.forEach(run => {
+
+            if (run.unicode) {
+
+              parts.push(`/F1 ${lineHeight.toFixed(2)} Tf`);
+
+              // Identity-H takes hex-encoded 2-byte glyph ids.
+              parts.push(`<${run.text}> Tj`);
+
+            } else {
+
+              parts.push(`/F2 ${lineHeight.toFixed(2)} Tf`);
+
+              parts.push(`(${escapePdfText(run.text)}) Tj`);
+
+            }
+
+          });
+
+        });
+
+
+        parts.push("ET");
+
+        textLayer = "\n" + parts.join("\n");
+
+      }
+
+
       const content =
 `q
 ${drawWidth} 0 0 ${drawHeight} ${x} ${y} cm
 /Im1 Do
-Q`;
+Q${textLayer}`;
 
 
       objects.push({
@@ -1895,7 +2190,11 @@ endstream`
 /Resources <<
 /XObject <<
 /Im1 ${imageObject} 0 R
->>
+>>${hasText ? `
+/Font <<${useEmbedded ? `
+/F1 ${FONT_OBJECT_NUMBER} 0 R` : ""}
+/F2 ${latinObjectNumber} 0 R
+>>` : ""}
 >>
 /Contents ${contentObject} 0 R
 >>`
@@ -1909,6 +2208,40 @@ endstream`
 
     }
   );
+
+
+  if (useEmbedded) {
+
+    // Composite font: Type0 + descendant + descriptor + font file +
+    // ToUnicode. Carries any script the embedded font covers.
+    objects.push(...fontObjects);
+
+  }
+
+
+  if (hasText) {
+
+    /*
+      The built-in Latin font is always present alongside the embedded
+      one. The Bengali font contains no Latin glyphs, so English words
+      and digits in a mixed document are drawn with this instead of
+      being dropped from the search layer.
+    */
+    objects.push({
+
+      number: latinObjectNumber,
+
+      body:
+`<<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Helvetica
+/Encoding /WinAnsiEncoding
+>>`
+
+    });
+
+  }
 
 
   objects.unshift({
@@ -2007,6 +2340,87 @@ ${xref}
 
 
   return pdf;
+
+}
+
+
+/*
+  Converts the assembled PDF string to raw bytes.
+
+  The PDF is built as a "binary string" where each character stands for
+  one byte, which is how the embedded JPEG data is carried. Handing that
+  string straight to Blob would encode it as UTF-8 and expand every byte
+  above 127 into two, corrupting both the image streams and the xref
+  offsets. Writing one byte per character keeps the file valid.
+*/
+/*
+  Keeps only the characters the PDF text layer can actually represent.
+
+  The layer uses Helvetica with WinAnsiEncoding, a single-byte encoding
+  that covers Latin text but not Bengali. Embedding a Unicode font would
+  be required for Bengali glyphs, and a font file cannot be bundled
+  without shipping several megabytes.
+
+  So Bengali OCR text is still extracted, editable, copyable and stored
+  with the document -- it simply is not written into the PDF's hidden
+  search layer. Returning "" here means such a page keeps its image and
+  stays valid rather than emitting corrupt text operators.
+*/
+function pdfEncodableText(text) {
+
+  if (!text) {
+
+    return "";
+
+  }
+
+
+  const filtered =
+    text
+      .split("\n")
+      .map(line =>
+        // Printable WinAnsi range only.
+        line.replace(/[^\x20-\x7E\xA0-\xFF]/g, "").trim()
+      )
+      .filter(line => line.length)
+      .join("\n");
+
+
+  return filtered;
+
+}
+
+
+/*
+  Escapes the characters that terminate or alter a PDF string literal.
+  Backslash must be replaced first or it would double-escape the
+  parentheses handled after it.
+*/
+function escapePdfText(line) {
+
+  return line
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)")
+    .replace(/\r/g, "");
+
+}
+
+
+function pdfStringToBytes(pdf) {
+
+  const bytes =
+    new Uint8Array(pdf.length);
+
+
+  for (let i = 0; i < pdf.length; i++) {
+
+    bytes[i] = pdf.charCodeAt(i) & 0xff;
+
+  }
+
+
+  return bytes;
 
 }
 
@@ -2809,6 +3223,54 @@ $("redoBtn")
         showToast("Redone");
 
       }
+
+    }
+  );
+
+
+$("ocrBtn")
+  .addEventListener(
+    "click",
+    async () => {
+
+      const page =
+        state.pages[state.currentPage];
+
+
+      if (!page || !window.WebScanOCR) {
+
+        showToast(
+          "OCR is unavailable",
+          "!"
+        );
+
+        return;
+
+      }
+
+
+      // Existing text opens instantly; recognition only runs when there
+      // is nothing stored, so reopening a page never redoes the work.
+      if (page.ocrText) {
+
+        window.WebScanOCR.showForPage(page);
+
+        return;
+
+      }
+
+
+      const source =
+        await createProcessedData(page);
+
+
+      // Both scripts are recognised together, so a page mixing English
+      // and Bengali is handled without asking the user to choose.
+      window.WebScanOCR.run(
+        source,
+        "eng+ben",
+        page
+      );
 
     }
   );
