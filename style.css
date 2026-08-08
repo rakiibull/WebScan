@@ -2400,3 +2400,43 @@ input {
 .history-btn:disabled:active {
   transform: none;
 }
+
+
+/* =====================================================
+   PDF EXPORT OPTIONS
+===================================================== */
+
+/* Option rows stack under a shared label inside one section. */
+#pdfOptions label:not(:first-child) {
+  margin-top: 16px;
+}
+
+.pagesize-btn,
+.orientation-btn,
+.compression-btn {
+  flex: 1;
+  min-height: 42px;
+  padding: 0 6px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pagesize-btn.active,
+.orientation-btn.active,
+.compression-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04231c;
+}
+
+.pdf-estimate {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}

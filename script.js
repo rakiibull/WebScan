@@ -40,6 +40,13 @@ const state = {
 
   quality: "medium",
 
+  // PDF layout options.
+  pageSize: "a4",
+
+  orientation: "auto",
+
+  compression: "balanced",
+
   documentName: "My Document",
 
   favorite: false,
@@ -1513,6 +1520,11 @@ function finishScan() {
 
   showScreen("export");
 
+
+  updateExportOptionVisibility();
+
+  updatePdfEstimate();
+
 }
 
 
@@ -1560,6 +1572,9 @@ document
         state.exportFormat =
           btn.dataset.format;
 
+
+        updateExportOptionVisibility();
+
       }
     );
 
@@ -1587,10 +1602,120 @@ document
         state.quality =
           btn.dataset.quality;
 
+
+        updatePdfEstimate();
+
       }
     );
 
   });
+
+
+/*
+  Wires a row of mutually exclusive option buttons to a state field.
+  Used for the PDF layout choices, which all share the same behaviour.
+*/
+function wireOptionGroup(selector, datasetKey, stateKey) {
+
+  document
+    .querySelectorAll(selector)
+    .forEach(btn => {
+
+      btn.addEventListener(
+        "click",
+        () => {
+
+          document
+            .querySelectorAll(selector)
+            .forEach(other =>
+              other.classList.remove("active")
+            );
+
+
+          btn.classList.add("active");
+
+
+          state[stateKey] =
+            btn.dataset[datasetKey];
+
+
+          updatePdfEstimate();
+
+        }
+      );
+
+    });
+
+}
+
+
+wireOptionGroup(".pagesize-btn", "pagesize", "pageSize");
+
+wireOptionGroup(".orientation-btn", "orientation", "orientation");
+
+wireOptionGroup(".compression-btn", "compression", "compression");
+
+
+/*
+  Shows roughly what the chosen settings will produce, so the trade-off
+  between size and quality is visible before exporting rather than
+  discovered afterwards.
+*/
+function updatePdfEstimate() {
+
+  const label =
+    $("pdfEstimate");
+
+
+  if (!label) {
+
+    return;
+
+  }
+
+
+  const limit =
+    COMPRESSION_LIMITS[state.compression];
+
+
+  const resolution =
+    Number.isFinite(limit)
+      ? `up to ${limit}px on the long edge`
+      : "full resolution";
+
+
+  const sheet =
+    state.pageSize === "original"
+      ? "page sized to each scan"
+      : `${state.pageSize.toUpperCase()} sheet`;
+
+
+  label.textContent =
+    `${sheet}, ${resolution}.`;
+
+}
+
+
+/* PDF-only options are hidden when exporting images. */
+function updateExportOptionVisibility() {
+
+  const panel =
+    $("pdfOptions");
+
+
+  if (!panel) {
+
+    return;
+
+  }
+
+
+  panel.classList.toggle(
+    "hidden",
+    state.exportFormat !== "pdf"
+  );
+
+}
 
 
 
@@ -1606,30 +1731,24 @@ async function createProcessedData(
     await loadImage(page.src);
 
 
-  const oldFilter =
-    state.filter;
+  /*
+    Rendering reads the shared editor state, so the page being exported
+    is swapped in and the previous values restored afterwards. Saving
+    every adjustment field keeps export in step with the editor -- a
+    partial save here silently exported the wrong sharpness/saturation.
+  */
+  const previous = {
+    filter: state.filter,
+    brightness: state.brightness,
+    contrast: state.contrast,
+    sharpness: state.sharpness,
+    saturation: state.saturation,
+    exposure: state.exposure,
+    rotation: state.rotation
+  };
 
-  const oldBrightness =
-    state.brightness;
 
-  const oldContrast =
-    state.contrast;
-
-  const oldRotation =
-    state.rotation;
-
-
-  state.filter =
-    page.filter || "original";
-
-  state.brightness =
-    page.brightness || 0;
-
-  state.contrast =
-    page.contrast || 0;
-
-  state.rotation =
-    page.rotation || 0;
+  loadPageIntoState(page);
 
 
   const canvas =
@@ -1643,26 +1762,91 @@ async function createProcessedData(
 
 
   const data =
-    canvas.toDataURL(
-      "image/jpeg",
-      qualityValue()
-    );
+    compressCanvas(canvas)
+      .toDataURL(
+        "image/jpeg",
+        qualityValue()
+      );
 
 
-  state.filter =
-    oldFilter;
-
-  state.brightness =
-    oldBrightness;
-
-  state.contrast =
-    oldContrast;
-
-  state.rotation =
-    oldRotation;
+  Object.assign(state, previous);
 
 
   return data;
+
+}
+
+
+/*
+  Longest edge in pixels for each compression setting.
+
+  A scan wider than this carries more detail than a printed page can
+  show, so capping it cuts file size substantially with no visible loss.
+  "none" leaves the image untouched for archival-quality output.
+*/
+const COMPRESSION_LIMITS = {
+
+  high: 1400,
+
+  balanced: 2200,
+
+  none: Infinity
+
+};
+
+
+function compressCanvas(canvas) {
+
+  const limit =
+    COMPRESSION_LIMITS[state.compression] ??
+    COMPRESSION_LIMITS.balanced;
+
+
+  const longest =
+    Math.max(canvas.width, canvas.height);
+
+
+  // Never upscale: a small scan stays exactly as it is.
+  if (!Number.isFinite(limit) || longest <= limit) {
+
+    return canvas;
+
+  }
+
+
+  const scale = limit / longest;
+
+
+  const out =
+    document.createElement("canvas");
+
+  out.width =
+    Math.max(1, Math.round(canvas.width * scale));
+
+  out.height =
+    Math.max(1, Math.round(canvas.height * scale));
+
+
+  const ctx =
+    out.getContext("2d");
+
+
+  // Smooth downscaling keeps text edges clean rather than aliased.
+  ctx.imageSmoothingEnabled = true;
+
+  ctx.imageSmoothingQuality = "high";
+
+
+  ctx.drawImage(
+    canvas,
+    0,
+    0,
+    out.width,
+    out.height
+  );
+
+
+  return out;
 
 }
 
@@ -1783,7 +1967,15 @@ async function exportPDF() {
 
 
   const pdf =
-    buildPDF(images, texts, embeddedFont);
+    buildPDF(
+      images,
+      texts,
+      embeddedFont,
+      {
+        pageSize: state.pageSize,
+        orientation: state.orientation
+      }
+    );
 
 
   const blob =
@@ -1843,7 +2035,73 @@ async function exportPDF() {
   a composite Identity-H font. Without it the layer falls back to the
   built-in Helvetica, which can only carry Latin text.
 */
-function buildPDF(dataUrls, ocrTexts = [], embeddedFont = null) {
+/* Standard sheet sizes in PDF points (1/72 inch). */
+const PAGE_SIZES = {
+
+  a4: { width: 595.28, height: 841.89 },
+
+  letter: { width: 612, height: 792 }
+
+};
+
+
+/*
+  Works out the sheet for one image.
+
+  "original" sizes the page to the image itself so nothing is letterboxed
+  and no area is wasted. Fixed sizes keep a consistent printable sheet;
+  "auto" orientation then turns the sheet to match the image so a
+  landscape scan is not shrunk to fit a portrait page.
+*/
+function resolvePageSize(dimensions, layout) {
+
+  if (layout.pageSize === "original") {
+
+    /*
+      Images are placed at 72 dpi in PDF units. Scans are usually far
+      denser than that, so the sheet is divided down to a realistic
+      physical size instead of producing a metres-wide page.
+    */
+    const dpi = 150;
+
+    const scale = 72 / dpi;
+
+    return {
+      width: Math.max(72, dimensions.width * scale),
+      height: Math.max(72, dimensions.height * scale)
+    };
+
+  }
+
+
+  const base =
+    PAGE_SIZES[layout.pageSize] || PAGE_SIZES.a4;
+
+
+  const imageIsLandscape =
+    dimensions.width > dimensions.height;
+
+
+  const wantLandscape =
+    layout.orientation === "landscape" ||
+    (layout.orientation === "auto" && imageIsLandscape);
+
+
+  return wantLandscape
+    ? { width: base.height, height: base.width }
+    : { width: base.width, height: base.height };
+
+}
+
+
+function buildPDF(dataUrls, ocrTexts = [], embeddedFont = null, layout = {}) {
+
+  // Defaults keep buildPDF usable on its own, e.g. from tests.
+  layout = {
+    pageSize: "a4",
+    orientation: "auto",
+    ...layout
+  };
 
   const objects = [];
 
@@ -2050,11 +2308,23 @@ endstream`
       });
 
 
-      const pageWidth = 595;
+      const sheet =
+        resolvePageSize(
+          dimensions,
+          layout
+        );
 
-      const pageHeight = 842;
+
+      const pageWidth = sheet.width;
+
+      const pageHeight = sheet.height;
 
 
+      /*
+        Fit the image inside the sheet without ever enlarging it beyond
+        its natural size at print resolution -- upscaling would only
+        soften the scan while inflating the file.
+      */
       const scale =
         Math.min(
           pageWidth / dimensions.width,
