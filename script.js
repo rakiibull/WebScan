@@ -40,6 +40,15 @@ const state = {
 
   quality: "medium",
 
+  // Document list view options.
+  search: "",
+
+  sortBy: "newest",
+
+  folderFilter: "all",
+
+  showTrash: false,
+
   // PDF layout options.
   pageSize: "a4",
 
@@ -102,6 +111,49 @@ const fileInput = $("fileInput");
    STORAGE
 ===================================================== */
 
+/* Folders a document can be filed under. */
+const FOLDERS = [
+
+  { id: "none", label: "Unfiled", icon: "📄" },
+
+  { id: "work", label: "Work", icon: "📁" },
+
+  { id: "study", label: "Study", icon: "📁" },
+
+  { id: "personal", label: "Personal", icon: "📁" },
+
+  { id: "receipts", label: "Receipts", icon: "📁" }
+
+];
+
+
+/*
+  Brings a stored document up to the current shape.
+
+  Documents saved by earlier versions have no folder or trash fields, so
+  reading them straight back would make every filter and sort misbehave.
+  Filling the gaps on load keeps old scans working untouched.
+*/
+function migrateDocument(doc) {
+
+  return {
+
+    ...doc,
+
+    folder: doc.folder || "none",
+
+    // Soft delete: trashed documents stay recoverable until purged.
+    deleted: doc.deleted === true,
+
+    deletedAt: doc.deletedAt || null,
+
+    favorite: doc.favorite === true
+
+  };
+
+}
+
+
 function loadDocuments() {
 
   try {
@@ -112,7 +164,8 @@ function loadDocuments() {
     if (saved) {
 
       state.documents =
-        JSON.parse(saved);
+        JSON.parse(saved)
+          .map(migrateDocument);
 
     }
 
@@ -2829,6 +2882,13 @@ async function exportDocument() {
     favorite:
       state.favorite,
 
+    // New documents start unfiled and out of the trash.
+    folder: "none",
+
+    deleted: false,
+
+    deletedAt: null,
+
     /*
       `originalSrc` exists so edits stay reversible during a session.
       Once a document is saved the edits are final, so it is dropped
@@ -2916,8 +2976,11 @@ function renderRecent() {
     $("recentList");
 
 
+  // Trashed documents must not resurface on the home screen.
   const recent =
-    state.documents.slice(0, 5);
+    state.documents
+      .filter(doc => !doc.deleted)
+      .slice(0, 5);
 
 
   if (!recent.length) {
@@ -2945,29 +3008,248 @@ function renderRecent() {
 }
 
 
+/*
+  Applies the active search, folder filter and sort to the stored
+  documents. Kept as one pure function so the list, the counts and the
+  tests all agree on what "visible" means.
+*/
+function visibleDocuments() {
+
+  const query =
+    state.search.trim().toLowerCase();
+
+
+  let list =
+    state.documents.filter(doc => {
+
+      // Trash is a separate view: a document is in one or the other.
+      if (!!doc.deleted !== state.showTrash) {
+
+        return false;
+
+      }
+
+
+      if (
+        state.folderFilter === "favorites" &&
+        !doc.favorite
+      ) {
+
+        return false;
+
+      }
+
+
+      if (
+        state.folderFilter !== "all" &&
+        state.folderFilter !== "favorites" &&
+        (doc.folder || "none") !== state.folderFilter
+      ) {
+
+        return false;
+
+      }
+
+
+      if (query) {
+
+        const name =
+          (doc.name || "").toLowerCase();
+
+
+        // Recognised text is searched too, so a document can be found
+        // by its contents and not only by the name given to it.
+        const text =
+          (doc.pages || [])
+            .map(page => page.ocrText || "")
+            .join(" ")
+            .toLowerCase();
+
+
+        if (
+          !name.includes(query) &&
+          !text.includes(query)
+        ) {
+
+          return false;
+
+        }
+
+      }
+
+
+      return true;
+
+    });
+
+
+  const byDate = (a, b) =>
+    new Date(b.date) - new Date(a.date);
+
+
+  switch (state.sortBy) {
+
+    case "oldest":
+      list.sort((a, b) => new Date(a.date) - new Date(b.date));
+      break;
+
+    case "name":
+      list.sort((a, b) =>
+        (a.name || "").localeCompare(b.name || "", undefined, {
+          sensitivity: "base"
+        })
+      );
+      break;
+
+    case "pages":
+      list.sort((a, b) =>
+        (b.pages?.length || 0) - (a.pages?.length || 0)
+      );
+      break;
+
+    default:
+      list.sort(byDate);
+
+  }
+
+
+  return list;
+
+}
+
+
+/*
+  Renders the folder filter chips with live counts, so it is obvious
+  where documents actually are without opening each folder.
+*/
+function updateFolderChips() {
+
+  const container =
+    $("folderChips");
+
+
+  if (!container) {
+
+    return;
+
+  }
+
+
+  // Counts always describe the non-trash library.
+  const active =
+    state.documents.filter(doc => !doc.deleted);
+
+
+  const countFor = (id) => {
+
+    if (id === "all") {
+
+      return active.length;
+
+    }
+
+
+    if (id === "favorites") {
+
+      return active.filter(doc => doc.favorite).length;
+
+    }
+
+
+    return active.filter(
+      doc => (doc.folder || "none") === id
+    ).length;
+
+  };
+
+
+  const chips = [
+
+    { id: "all", label: "All", icon: "▤" },
+
+    { id: "favorites", label: "Favorites", icon: "⭐" },
+
+    ...FOLDERS
+
+  ];
+
+
+  container.innerHTML =
+    chips
+      .map(chip => `
+        <button
+          class="folder-chip${
+            state.folderFilter === chip.id ? " active" : ""
+          }"
+          data-folder="${chip.id}"
+        >
+          ${chip.icon} ${escapeHTML(chip.label)}
+          <em>${countFor(chip.id)}</em>
+        </button>
+      `)
+      .join("");
+
+}
+
+
 function renderDocuments() {
 
   const list =
     $("documentsList");
 
 
+  const visible =
+    visibleDocuments();
+
+
   $("documentsCount").textContent =
-    `${state.documents.length} ${
-      state.documents.length === 1
-        ? "document"
-        : "documents"
-    }`;
+    state.showTrash
+      ? `${visible.length} in trash`
+      : `${visible.length} ${
+          visible.length === 1
+            ? "document"
+            : "documents"
+        }`;
 
 
-  if (!state.documents.length) {
+  updateFolderChips();
+
+
+  if (!visible.length) {
+
+    // The message names the actual reason the list is empty, rather
+    // than always claiming there are no documents at all.
+    const message =
+      state.showTrash
+        ? {
+            icon: "🗑",
+            title: "Trash is empty",
+            hint: "Deleted documents appear here."
+          }
+        : state.search.trim()
+          ? {
+              icon: "⌕",
+              title: "No matches",
+              hint: `Nothing found for “${escapeHTML(state.search.trim())}”.`
+            }
+          : state.folderFilter !== "all"
+            ? {
+                icon: "📁",
+                title: "Nothing here yet",
+                hint: "Move a document into this folder to see it."
+              }
+            : {
+                icon: "📄",
+                title: "No documents",
+                hint: "Start scanning to create your first document."
+              };
+
 
     list.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">📄</div>
-        <strong>No documents</strong>
-        <span>
-          Start scanning to create your first document.
-        </span>
+        <div class="empty-icon">${message.icon}</div>
+        <strong>${message.title}</strong>
+        <span>${message.hint}</span>
       </div>
     `;
 
@@ -2977,7 +3259,7 @@ function renderDocuments() {
 
 
   list.innerHTML =
-    state.documents
+    visible
       .map(documentCardHTML)
       .join("");
 
@@ -3005,6 +3287,18 @@ function documentCardHTML(doc) {
   const favorite =
     doc.favorite
       ? "⭐"
+      : "";
+
+
+  const folder =
+    FOLDERS.find(
+      item => item.id === (doc.folder || "none")
+    );
+
+
+  const folderTag =
+    folder && folder.id !== "none"
+      ? `<em class="document-folder">${folder.icon} ${folder.label}</em>`
       : "";
 
 
@@ -3039,6 +3333,8 @@ function documentCardHTML(doc) {
           ${favorite}
         </span>
 
+        ${folderTag}
+
       </div>
 
       <button
@@ -3050,6 +3346,289 @@ function documentCardHTML(doc) {
 
     </div>
   `;
+
+}
+
+
+
+/* =====================================================
+   DOCUMENT ACTIONS
+===================================================== */
+
+function findDocument(id) {
+
+  // Ids are numbers in memory but strings in dataset attributes.
+  return state.documents.find(
+    doc => String(doc.id) === String(id)
+  );
+
+}
+
+
+function refreshDocumentViews() {
+
+  saveDocuments();
+
+  renderDocuments();
+
+  renderRecent();
+
+}
+
+
+function renameDocument(id) {
+
+  const doc =
+    findDocument(id);
+
+
+  if (!doc) {
+
+    return;
+
+  }
+
+
+  const name =
+    prompt(
+      "Rename document",
+      doc.name || ""
+    );
+
+
+  // Cancel returns null; an empty name would leave an unlabelled card.
+  if (name === null) {
+
+    return;
+
+  }
+
+
+  const trimmed =
+    name.trim();
+
+
+  if (!trimmed) {
+
+    showToast(
+      "Name cannot be empty",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  doc.name = trimmed;
+
+  refreshDocumentViews();
+
+  showToast("Renamed");
+
+}
+
+
+function duplicateDocument(id) {
+
+  const doc =
+    findDocument(id);
+
+
+  if (!doc) {
+
+    return;
+
+  }
+
+
+  const copy = {
+
+    ...doc,
+
+    id: Date.now(),
+
+    name: `${doc.name} copy`,
+
+    date: new Date().toISOString(),
+
+    favorite: false,
+
+    // Pages are cloned so editing the copy cannot alter the original.
+    pages: (doc.pages || []).map(page => ({ ...page }))
+
+  };
+
+
+  state.documents.unshift(copy);
+
+  refreshDocumentViews();
+
+  showToast("Duplicated");
+
+}
+
+
+/*
+  Soft delete. The document moves to trash and stays recoverable
+  instead of being destroyed on a single tap.
+*/
+function trashDocument(id) {
+
+  const doc =
+    findDocument(id);
+
+
+  if (!doc) {
+
+    return;
+
+  }
+
+
+  doc.deleted = true;
+
+  doc.deletedAt = new Date().toISOString();
+
+  refreshDocumentViews();
+
+  showToast("Moved to trash");
+
+}
+
+
+function restoreDocument(id) {
+
+  const doc =
+    findDocument(id);
+
+
+  if (!doc) {
+
+    return;
+
+  }
+
+
+  doc.deleted = false;
+
+  doc.deletedAt = null;
+
+  refreshDocumentViews();
+
+  showToast("Restored");
+
+}
+
+
+/* Permanent removal, only reachable from the trash view. */
+function deleteDocumentForever(id) {
+
+  const doc =
+    findDocument(id);
+
+
+  if (!doc) {
+
+    return;
+
+  }
+
+
+  const confirmed =
+    confirm(
+      `Permanently delete “${doc.name}”? This cannot be undone.`
+    );
+
+
+  if (!confirmed) {
+
+    return;
+
+  }
+
+
+  state.documents =
+    state.documents.filter(
+      item => String(item.id) !== String(id)
+    );
+
+
+  refreshDocumentViews();
+
+  showToast("Deleted permanently");
+
+}
+
+
+function moveDocumentToFolder(id, folderId) {
+
+  const doc =
+    findDocument(id);
+
+
+  if (!doc) {
+
+    return;
+
+  }
+
+
+  doc.folder = folderId;
+
+
+  const folder =
+    FOLDERS.find(item => item.id === folderId);
+
+
+  refreshDocumentViews();
+
+  showToast(
+    folderId === "none"
+      ? "Removed from folder"
+      : `Moved to ${folder ? folder.label : folderId}`
+  );
+
+}
+
+
+function emptyTrash() {
+
+  const count =
+    state.documents.filter(doc => doc.deleted).length;
+
+
+  if (!count) {
+
+    showToast("Trash is already empty");
+
+    return;
+
+  }
+
+
+  const confirmed =
+    confirm(
+      `Permanently delete ${count} ${
+        count === 1 ? "document" : "documents"
+      }? This cannot be undone.`
+    );
+
+
+  if (!confirmed) {
+
+    return;
+
+  }
+
+
+  state.documents =
+    state.documents.filter(doc => !doc.deleted);
+
+
+  refreshDocumentViews();
+
+  showToast("Trash emptied");
 
 }
 
@@ -3732,17 +4311,6 @@ $("documentsScanBtn")
   );
 
 
-$("documentsSearchBtn")
-  .addEventListener(
-    "click",
-    () => {
-
-      showToast(
-        "Search coming soon"
-      );
-
-    }
-  );
 
 
 $("documentsList")
@@ -3758,7 +4326,7 @@ $("documentsList")
 
       if (menu) {
 
-        toggleSavedFavorite(
+        openDocumentMenu(
           menu.dataset.menu
         );
 
@@ -3766,6 +4334,406 @@ $("documentsList")
 
     }
   );
+
+
+/* SEARCH */
+
+$("documentsSearch")
+  .addEventListener(
+    "input",
+    event => {
+
+      state.search = event.target.value;
+
+
+      $("clearSearchBtn").classList.toggle(
+        "hidden",
+        !state.search
+      );
+
+
+      renderDocuments();
+
+    }
+  );
+
+
+$("clearSearchBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      state.search = "";
+
+      $("documentsSearch").value = "";
+
+      $("clearSearchBtn").classList.add("hidden");
+
+      renderDocuments();
+
+    }
+  );
+
+
+/* SORT */
+
+$("documentsSort")
+  .addEventListener(
+    "change",
+    event => {
+
+      state.sortBy = event.target.value;
+
+      renderDocuments();
+
+    }
+  );
+
+
+/* FOLDER FILTER */
+
+$("folderChips")
+  .addEventListener(
+    "click",
+    event => {
+
+      const chip =
+        event.target.closest("[data-folder]");
+
+
+      if (!chip) {
+
+        return;
+
+      }
+
+
+      state.folderFilter = chip.dataset.folder;
+
+      renderDocuments();
+
+    }
+  );
+
+
+/* TRASH */
+
+$("trashToggleBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      state.showTrash = !state.showTrash;
+
+
+      $("trashToggleBtn").classList.toggle(
+        "active",
+        state.showTrash
+      );
+
+
+      // Folder filters do not apply inside trash, so the view resets to
+      // showing everything that was deleted.
+      if (state.showTrash) {
+
+        state.folderFilter = "all";
+
+      }
+
+
+      $("emptyTrashBtn").classList.toggle(
+        "hidden",
+        !state.showTrash
+      );
+
+
+      $("folderChips").classList.toggle(
+        "hidden",
+        state.showTrash
+      );
+
+
+      renderDocuments();
+
+    }
+  );
+
+
+$("emptyTrashBtn")
+  .addEventListener(
+    "click",
+    emptyTrash
+  );
+
+
+
+/* =====================================================
+   DOCUMENT ACTION SHEET
+===================================================== */
+
+const documentSheet =
+  document.createElement("div");
+
+documentSheet.className = "page-sheet";
+
+document.body.appendChild(documentSheet);
+
+
+let documentMenuId = null;
+
+
+function openDocumentMenu(id) {
+
+  const doc =
+    findDocument(id);
+
+
+  if (!doc) {
+
+    return;
+
+  }
+
+
+  documentMenuId = id;
+
+
+  // Trashed documents only offer restore or permanent deletion; the
+  // editing actions would have no meaning there.
+  const actions =
+    doc.deleted
+      ? [
+          { act: "restore", label: "Restore" },
+          { act: "purge", label: "Delete permanently", danger: true }
+        ]
+      : [
+          { act: "open", label: "Open" },
+          { act: "rename", label: "Rename" },
+          {
+            act: "favorite",
+            label: doc.favorite
+              ? "Remove from favorites"
+              : "Add to favorites"
+          },
+          { act: "duplicate", label: "Duplicate" },
+          { act: "folder", label: "Move to folder…" },
+          { act: "trash", label: "Move to trash", danger: true }
+        ];
+
+
+  documentSheet.innerHTML = `
+    <div class="page-sheet-panel">
+      <div class="page-sheet-title">
+        ${escapeHTML(doc.name || "Document")}
+      </div>
+      ${
+        actions
+          .map(action => `
+            <button
+              type="button"
+              class="page-sheet-item${action.danger ? " danger" : ""}"
+              data-act="${action.act}"
+            >
+              ${action.label}
+            </button>
+          `)
+          .join("")
+      }
+      <button type="button" class="page-sheet-cancel" data-act="cancel">
+        Cancel
+      </button>
+    </div>
+  `;
+
+
+  documentSheet.classList.add("show");
+
+}
+
+
+function openFolderPicker(id) {
+
+  const doc =
+    findDocument(id);
+
+
+  if (!doc) {
+
+    return;
+
+  }
+
+
+  documentMenuId = id;
+
+
+  documentSheet.innerHTML = `
+    <div class="page-sheet-panel">
+      <div class="page-sheet-title">Move to folder</div>
+      ${
+        FOLDERS
+          .map(folder => `
+            <button
+              type="button"
+              class="page-sheet-item${
+                (doc.folder || "none") === folder.id ? " selected" : ""
+              }"
+              data-folder-target="${folder.id}"
+            >
+              ${folder.icon} ${folder.label}
+            </button>
+          `)
+          .join("")
+      }
+      <button type="button" class="page-sheet-cancel" data-act="cancel">
+        Cancel
+      </button>
+    </div>
+  `;
+
+
+  documentSheet.classList.add("show");
+
+}
+
+
+documentSheet.addEventListener(
+  "click",
+  event => {
+
+    // Tapping the backdrop dismisses the sheet.
+    if (event.target === documentSheet) {
+
+      documentSheet.classList.remove("show");
+
+      return;
+
+    }
+
+
+    const target =
+      event.target.closest("[data-folder-target]");
+
+
+    if (target) {
+
+      const id = documentMenuId;
+
+      documentSheet.classList.remove("show");
+
+      moveDocumentToFolder(
+        id,
+        target.dataset.folderTarget
+      );
+
+      return;
+
+    }
+
+
+    const button =
+      event.target.closest("[data-act]");
+
+
+    if (!button) {
+
+      return;
+
+    }
+
+
+    const action = button.dataset.act;
+
+    const id = documentMenuId;
+
+
+    // The folder picker replaces this sheet, so it must stay open.
+    if (action !== "folder") {
+
+      documentSheet.classList.remove("show");
+
+    }
+
+
+    switch (action) {
+
+      case "open":
+        openSavedDocument(id);
+        break;
+
+      case "rename":
+        renameDocument(id);
+        break;
+
+      case "favorite":
+        toggleSavedFavorite(id);
+        break;
+
+      case "duplicate":
+        duplicateDocument(id);
+        break;
+
+      case "folder":
+        openFolderPicker(id);
+        break;
+
+      case "trash":
+        trashDocument(id);
+        break;
+
+      case "restore":
+        restoreDocument(id);
+        break;
+
+      case "purge":
+        deleteDocumentForever(id);
+        break;
+
+    }
+
+  }
+);
+
+
+/*
+  Loads a saved document back into the editor session so it can be
+  viewed and re-exported.
+*/
+function openSavedDocument(id) {
+
+  const doc =
+    findDocument(id);
+
+
+  if (!doc || !doc.pages?.length) {
+
+    showToast(
+      "This document has no pages",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  // Copied so editing the session does not mutate the saved record
+  // until the user exports again.
+  state.pages =
+    doc.pages.map(page => ({ ...page }));
+
+  state.currentPage = 0;
+
+  state.documentName = doc.name;
+
+  state.favorite = !!doc.favorite;
+
+
+  updatePages();
+
+  openEditor(0);
+
+}
 
 
 

@@ -2440,3 +2440,151 @@ input {
   font-size: 11px;
   line-height: 1.5;
 }
+
+
+/* =====================================================
+   DOCUMENT MANAGEMENT
+===================================================== */
+
+.documents-toolbar {
+  padding: 0 18px 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.search-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-row .search-icon {
+  position: absolute;
+  left: 13px;
+  color: var(--muted);
+  font-size: 15px;
+  pointer-events: none;
+}
+
+#documentsSearch {
+  width: 100%;
+  height: 44px;
+  padding: 0 38px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+}
+
+/* Hide the browser's own clear control; the app provides its own. */
+#documentsSearch::-webkit-search-cancel-button {
+  display: none;
+}
+
+.clear-search {
+  position: absolute;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.folder-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.folder-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.folder-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 17px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.folder-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04231c;
+}
+
+.folder-chip em {
+  font-style: normal;
+  opacity: .7;
+  font-size: 11px;
+}
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sort-row label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#documentsSort {
+  flex: 1;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.empty-trash-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 11px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.circle-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04231c;
+}
+
+.document-folder {
+  display: inline-block;
+  margin-top: 4px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* Marks the folder a document is already in, inside the picker. */
+.page-sheet-item.selected {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}

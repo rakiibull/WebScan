@@ -943,13 +943,67 @@
       </div>
 
       <button
-        id="documentsSearchBtn"
+        id="trashToggleBtn"
         class="circle-btn"
+        aria-label="Trash"
       >
-        ⌕
+        🗑
       </button>
 
     </header>
+
+
+    <div class="documents-toolbar">
+
+      <div class="search-row">
+
+        <span class="search-icon">⌕</span>
+
+        <input
+          id="documentsSearch"
+          type="search"
+          placeholder="Search name or text…"
+          autocomplete="off"
+        >
+
+        <button
+          id="clearSearchBtn"
+          class="clear-search hidden"
+          aria-label="Clear search"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <div
+        id="folderChips"
+        class="folder-chips"
+      ></div>
+
+
+      <div class="sort-row">
+
+        <label for="documentsSort">Sort</label>
+
+        <select id="documentsSort">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="name">Name (A–Z)</option>
+          <option value="pages">Most pages</option>
+        </select>
+
+        <button
+          id="emptyTrashBtn"
+          class="empty-trash-btn hidden"
+        >
+          Empty trash
+        </button>
+
+      </div>
+
+    </div>
 
 
     <div
