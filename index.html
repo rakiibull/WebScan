@@ -8,7 +8,7 @@
     content="width=device-width, initial-scale=1, viewport-fit=cover"
   >
 
-  <meta name="theme-color" content="#080b12">
+  <meta name="theme-color" content="#070b10">
 
   <!-- iOS standalone behaviour. Without these the app opens in Safari
        chrome when launched from the home screen, losing the full-height
@@ -40,16 +40,41 @@
 
     <header class="home-header">
 
-      <div>
-        <div class="brand">
-          <span class="brand-icon">▣</span>
-          WebScan
-          <span class="pro-badge">PRO</span>
+      <div class="brand-block">
+
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path
+              d="M4 11V7a3 3 0 0 1 3-3h4M21 4h4a3 3 0 0 1 3 3v4M28 21v4a3 3 0 0 1-3 3h-4M11 28H7a3 3 0 0 1-3-3v-4"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+            />
+            <circle
+              cx="16" cy="15" r="5.2"
+              stroke="currentColor"
+              stroke-width="2.2"
+            />
+            <path
+              d="m19.8 18.8 3.2 3.2"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </span>
+
+        <div class="brand-text">
+          <div class="brand">
+            WebScan
+            <span class="pro-badge">PRO</span>
+          </div>
+
+          <div class="subtitle">
+            Scan anything. Save everything.
+          </div>
         </div>
 
-        <div class="subtitle">
-          Smart document scanner
-        </div>
       </div>
 
       <button
@@ -57,7 +82,14 @@
         class="circle-btn"
         aria-label="Settings"
       >
-        ⚙
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.1"
+            stroke="currentColor" stroke-width="1.9" fill="none"/>
+          <path
+            d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a1.9 1.9 0 1 1-2.7 2.7l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.3a1.9 1.9 0 1 1-3.8 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a1.9 1.9 0 1 1-2.7-2.7l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3.4a1.9 1.9 0 1 1 0-3.8h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a1.9 1.9 0 1 1 2.7-2.7l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3.4a1.9 1.9 0 1 1 3.8 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a1.9 1.9 0 1 1 2.7 2.7l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1h.3a1.9 1.9 0 1 1 0 3.8h-.2a1.6 1.6 0 0 0-1.5 1Z"
+            stroke="currentColor" stroke-width="1.7" fill="none"
+            stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
 
     </header>
@@ -66,8 +98,8 @@
     <main class="home-content">
 
       <div class="welcome">
-        <span>Good afternoon 👋</span>
-        <h1>What do you want to scan?</h1>
+        <span>Welcome back</span>
+        <h1>Ready to scan?</h1>
       </div>
 
 
@@ -79,11 +111,20 @@
           id="scanBtn"
           class="scan-action primary"
         >
-          <span class="action-icon">▣</span>
+          <span class="action-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M4.5 9V6.8A2.3 2.3 0 0 1 6.8 4.5H9M15 4.5h2.2A2.3 2.3 0 0 1 19.5 6.8V9M19.5 15v2.2a2.3 2.3 0 0 1-2.3 2.3H15M9 19.5H6.8a2.3 2.3 0 0 1-2.3-2.3V15"
+                stroke="currentColor" stroke-width="2" fill="none"
+                stroke-linecap="round"/>
+              <circle cx="12" cy="12" r="3"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+            </svg>
+          </span>
 
-          <span>
+          <span class="action-text">
             <strong>Scan Document</strong>
-            <small>Use your camera</small>
+            <small>Tap to start scanning</small>
           </span>
 
           <span class="action-arrow">›</span>
@@ -94,10 +135,19 @@
           id="importBtn"
           class="scan-action secondary"
         >
-          <span class="action-icon">▧</span>
+          <span class="action-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3.5" y="5" width="17" height="14" rx="2.6"
+                stroke="currentColor" stroke-width="2" fill="none"/>
+              <circle cx="8.8" cy="10" r="1.6" fill="currentColor"/>
+              <path d="m4.5 17 4.6-4.4a1.8 1.8 0 0 1 2.5 0L19.5 19"
+                stroke="currentColor" stroke-width="2" fill="none"
+                stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
 
-          <span>
-            <strong>Import Photo</strong>
+          <span class="action-text">
+            <strong>Import from Photos</strong>
             <small>Choose from gallery</small>
           </span>
 
@@ -110,31 +160,60 @@
       <!-- QUICK ACTIONS -->
 
       <div class="section-title">
-        <span>Quick tools</span>
+        <span>Quick actions</span>
       </div>
 
       <div class="quick-grid">
 
         <button class="quick-card" data-action="camera">
-          <span>📷</span>
+          <span class="quick-icon tint-teal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.5 8.5A2 2 0 0 1 5.5 6.5h1.7l1-1.7a1.4 1.4 0 0 1 1.2-.7h4.2a1.4 1.4 0 0 1 1.2.7l1 1.7h1.7a2 2 0 0 1 2 2v8.2a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z"
+                stroke="currentColor" stroke-width="1.9" fill="none"
+                stroke-linejoin="round"/>
+              <circle cx="12" cy="12.6" r="3.1"
+                stroke="currentColor" stroke-width="1.9" fill="none"/>
+            </svg>
+          </span>
           <strong>Camera</strong>
           <small>New scan</small>
         </button>
 
         <button class="quick-card" data-action="gallery">
-          <span>🖼️</span>
+          <span class="quick-icon tint-violet">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3.5" y="5" width="17" height="14" rx="2.6"
+                stroke="currentColor" stroke-width="1.9" fill="none"/>
+              <circle cx="8.8" cy="10" r="1.5" fill="currentColor"/>
+              <path d="m4.5 17 4.6-4.4a1.8 1.8 0 0 1 2.5 0L19.5 19"
+                stroke="currentColor" stroke-width="1.9" fill="none"
+                stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
           <strong>Gallery</strong>
           <small>Import images</small>
         </button>
 
         <button class="quick-card" data-action="documents">
-          <span>📁</span>
+          <span class="quick-icon tint-amber">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.5 7.4a2 2 0 0 1 2-2h3.3l2 2.2h7.7a2 2 0 0 1 2 2v8.4a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"
+                stroke="currentColor" stroke-width="1.9" fill="none"
+                stroke-linejoin="round"/>
+            </svg>
+          </span>
           <strong>Documents</strong>
           <small>Saved scans</small>
         </button>
 
         <button class="quick-card" data-action="favorites">
-          <span>⭐</span>
+          <span class="quick-icon tint-rose">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 4.6 2.4 4.9 5.4.8-3.9 3.8.9 5.3-4.8-2.5-4.8 2.5.9-5.3-3.9-3.8 5.4-.8Z"
+                stroke="currentColor" stroke-width="1.9" fill="none"
+                stroke-linejoin="round"/>
+            </svg>
+          </span>
           <strong>Favorites</strong>
           <small>Starred files</small>
         </button>
@@ -154,7 +233,7 @@
           id="viewAllBtn"
           class="text-btn"
         >
-          View all
+          See all
         </button>
 
       </div>
@@ -164,7 +243,16 @@
 
         <div class="empty-state">
 
-          <div class="empty-icon">📄</div>
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6.5 3.5h7l4.5 4.5v12a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1.5-1.5Z"
+                stroke="currentColor" stroke-width="1.7" fill="none"
+                stroke-linejoin="round"/>
+              <path d="M13.2 3.6V8h4.6"
+                stroke="currentColor" stroke-width="1.7" fill="none"
+                stroke-linejoin="round"/>
+            </svg>
+          </div>
 
           <strong>No scans yet</strong>
 
@@ -184,13 +272,26 @@
     <nav class="bottom-nav">
 
       <button class="nav-item active" data-nav="home">
-        <span>⌂</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 10.4 12 4l8 6.4V19a1.6 1.6 0 0 1-1.6 1.6H5.6A1.6 1.6 0 0 1 4 19Z"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linejoin="round"/>
+          </svg>
+        </span>
         <small>Home</small>
       </button>
 
       <button class="nav-item" data-nav="documents">
-        <span>▤</span>
-        <small>Scans</small>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4.4" y="3.6" width="15.2" height="16.8" rx="2.2"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+            <path d="M8 8.4h8M8 12h8M8 15.6h5"
+              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <small>Documents</small>
       </button>
 
       <button
@@ -198,16 +299,36 @@
         class="nav-scan"
         aria-label="Scan"
       >
-        +
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4.5 9V6.8A2.3 2.3 0 0 1 6.8 4.5H9M15 4.5h2.2A2.3 2.3 0 0 1 19.5 6.8V9M19.5 15v2.2a2.3 2.3 0 0 1-2.3 2.3H15M9 19.5H6.8a2.3 2.3 0 0 1-2.3-2.3V15"
+            stroke="currentColor" stroke-width="2.2" fill="none"
+            stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="2.9"
+            stroke="currentColor" stroke-width="2.2" fill="none"/>
+        </svg>
       </button>
 
       <button class="nav-item" data-nav="favorites">
-        <span>☆</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m12 4.6 2.4 4.9 5.4.8-3.9 3.8.9 5.3-4.8-2.5-4.8 2.5.9-5.3-3.9-3.8 5.4-.8Z"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linejoin="round"/>
+          </svg>
+        </span>
         <small>Favorites</small>
       </button>
 
       <button class="nav-item" data-nav="settings">
-        <span>⚙</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+            <path d="M19.1 14.6a1.5 1.5 0 0 0 .3 1.7l.1.1a1.8 1.8 0 1 1-2.5 2.5l-.1-.1a1.5 1.5 0 0 0-2.6 1v.3a1.8 1.8 0 1 1-3.6 0v-.2a1.5 1.5 0 0 0-2.6-1l-.1.1a1.8 1.8 0 1 1-2.5-2.5l.1-.1a1.5 1.5 0 0 0-1-2.6h-.2a1.8 1.8 0 1 1 0-3.6h.2a1.5 1.5 0 0 0 1-2.6l-.1-.1a1.8 1.8 0 1 1 2.5-2.5l.1.1a1.5 1.5 0 0 0 2.6-1V3.8a1.8 1.8 0 1 1 3.6 0V4a1.5 1.5 0 0 0 2.6 1l.1-.1a1.8 1.8 0 1 1 2.5 2.5l-.1.1a1.5 1.5 0 0 0 1 2.6h.3a1.8 1.8 0 1 1 0 3.6h-.2a1.5 1.5 0 0 0-1.4 1Z"
+              stroke="currentColor" stroke-width="1.6" fill="none"
+              stroke-linejoin="round"/>
+          </svg>
+        </span>
         <small>Settings</small>
       </button>
 
@@ -228,20 +349,29 @@
       <button
         id="closeCameraBtn"
         class="circle-btn glass"
+        aria-label="Close scanner"
       >
-        ‹
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6.6 6.6 10.8 10.8M17.4 6.6 6.6 17.4"
+            stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+        </svg>
       </button>
 
       <div class="camera-title">
-        <strong>Scan Document</strong>
+        <strong>Scanner</strong>
         <span id="scanPageLabel">Page 1</span>
       </div>
 
       <button
         id="cameraSettingsBtn"
         class="circle-btn glass"
+        aria-label="Scanner options"
       >
-        ⋮
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="5.6" r="1.7" fill="currentColor"/>
+          <circle cx="12" cy="12" r="1.7" fill="currentColor"/>
+          <circle cx="12" cy="18.4" r="1.7" fill="currentColor"/>
+        </svg>
       </button>
 
     </header>
@@ -278,7 +408,7 @@
         </div>
 
         <div class="scan-hint">
-          Align the document inside the frame
+          Place the document inside the frame
         </div>
 
       </div>
@@ -297,7 +427,15 @@
         id="cameraError"
         class="camera-error hidden"
       >
-        <div class="error-icon">!</div>
+        <div class="error-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 8.4v4.4"
+              stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="12" cy="16.4" r="1.25" fill="currentColor"/>
+            <circle cx="12" cy="12" r="8.6"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+          </svg>
+        </div>
 
         <strong id="cameraErrorTitle">
           Camera unavailable
@@ -346,7 +484,13 @@
         id="flashBtn"
         class="tool-btn"
       >
-        <span>⚡</span>
+        <span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M13.2 3.2 5.8 13.4h5l-.4 7.4 7.6-10.4h-5.1Z"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linejoin="round"/>
+          </svg>
+        </span>
         <small>Flash</small>
       </button>
 
@@ -354,14 +498,22 @@
         id="zoomOutBtn"
         class="tool-btn"
       >
-        <span>−</span>
-        <small>Zoom</small>
+        <span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.4"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+            <path d="M8.4 11h5.2M15.8 15.8 20.5 20.5"
+              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <small>Zoom out</small>
       </button>
 
 
       <button
         id="captureBtn"
         class="capture-btn"
+        aria-label="Capture"
       >
         <span></span>
       </button>
@@ -371,8 +523,15 @@
         id="zoomInBtn"
         class="tool-btn"
       >
-        <span>+</span>
-        <small>Zoom</small>
+        <span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.4"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+            <path d="M8.4 11h5.2M11 8.4v5.2M15.8 15.8 20.5 20.5"
+              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <small>Zoom in</small>
       </button>
 
 
@@ -380,7 +539,19 @@
         id="switchCameraBtn"
         class="tool-btn"
       >
-        <span>↻</span>
+        <span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4.6 11a7.4 7.4 0 0 1 12.6-4.4l2 2"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linecap="round"/>
+            <path d="M19.4 13a7.4 7.4 0 0 1-12.6 4.4l-2-2"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linecap="round"/>
+            <path d="M19.4 4.2v4.4H15M4.6 19.8v-4.4H9"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
         <small>Flip</small>
       </button>
 
@@ -433,12 +604,17 @@
       <button
         id="editorBackBtn"
         class="circle-btn"
+        aria-label="Back"
       >
-        ‹
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14.6 5.4 8 12l6.6 6.6"
+            stroke="currentColor" stroke-width="2.1" fill="none"
+            stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
 
-      <div>
-        <strong>Edit Scan</strong>
+      <div class="editor-title">
+        <strong>Scan Result</strong>
         <span id="editorPageLabel">
           Page 1
         </span>
@@ -452,7 +628,14 @@
           aria-label="Undo"
           disabled
         >
-          ↶
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8.4 7.2 4.8 10.8l3.6 3.6"
+              stroke="currentColor" stroke-width="2" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4.8 10.8h8.4a5.4 5.4 0 0 1 0 10.8h-2.4"
+              stroke="currentColor" stroke-width="2" fill="none"
+              stroke-linecap="round"/>
+          </svg>
         </button>
 
         <button
@@ -461,7 +644,14 @@
           aria-label="Redo"
           disabled
         >
-          ↷
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m15.6 7.2 3.6 3.6-3.6 3.6"
+              stroke="currentColor" stroke-width="2" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M19.2 10.8h-8.4a5.4 5.4 0 0 0 0 10.8h2.4"
+              stroke="currentColor" stroke-width="2" fill="none"
+              stroke-linecap="round"/>
+          </svg>
         </button>
 
         <button
@@ -527,14 +717,14 @@
             class="filter-btn"
             data-filter="bw"
           >
-            B&W
+            B&amp;W
           </button>
 
           <button
             class="filter-btn"
             data-filter="gray"
           >
-            Gray
+            Grayscale
           </button>
 
           <button
@@ -563,7 +753,14 @@
             class="adjust-btn"
             data-tool="brightness"
           >
-            <span>☀</span>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"
+                  stroke="currentColor" stroke-width="1.9" fill="none"/>
+                <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7"
+                  stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+            </span>
             <small>Brightness</small>
           </button>
 
@@ -571,7 +768,13 @@
             class="adjust-btn"
             data-tool="contrast"
           >
-            <span>◐</span>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="8.2"
+                  stroke="currentColor" stroke-width="1.9" fill="none"/>
+                <path d="M12 3.8a8.2 8.2 0 0 1 0 16.4Z" fill="currentColor"/>
+              </svg>
+            </span>
             <small>Contrast</small>
           </button>
 
@@ -579,7 +782,14 @@
             class="adjust-btn"
             data-tool="exposure"
           >
-            <span>☀</span>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="8.2"
+                  stroke="currentColor" stroke-width="1.9" fill="none"/>
+                <path d="M8.4 15.6 15.6 8.4M9.4 9.4h.02M14.6 14.6h.02"
+                  stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+            </span>
             <small>Exposure</small>
           </button>
 
@@ -587,7 +797,13 @@
             class="adjust-btn"
             data-tool="saturation"
           >
-            <span>◍</span>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3.6c3.4 3.5 5.6 6.2 5.6 9a5.6 5.6 0 1 1-11.2 0c0-2.8 2.2-5.5 5.6-9Z"
+                  stroke="currentColor" stroke-width="1.9" fill="none"
+                  stroke-linejoin="round"/>
+              </svg>
+            </span>
             <small>Saturation</small>
           </button>
 
@@ -595,7 +811,13 @@
             class="adjust-btn"
             data-tool="sharpness"
           >
-            <span>◈</span>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m12 3.4 3 5.6 5.6 3-5.6 3-3 5.6-3-5.6-5.6-3 5.6-3Z"
+                  stroke="currentColor" stroke-width="1.8" fill="none"
+                  stroke-linejoin="round"/>
+              </svg>
+            </span>
             <small>Sharpness</small>
           </button>
 
@@ -603,7 +825,13 @@
             id="cropBtn"
             class="adjust-btn"
           >
-            <span>⛶</span>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6.6 2.8v14.6h14.6M2.8 6.6h14.6v14.6"
+                  stroke="currentColor" stroke-width="1.9" fill="none"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
             <small>Crop</small>
           </button>
 
@@ -611,15 +839,32 @@
             id="ocrBtn"
             class="adjust-btn"
           >
-            <span>⌨</span>
-            <small>Text</small>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.6 8V5.4a1.8 1.8 0 0 1 1.8-1.8H8M16 3.6h2.6a1.8 1.8 0 0 1 1.8 1.8V8M20.4 16v2.6a1.8 1.8 0 0 1-1.8 1.8H16M8 20.4H5.4a1.8 1.8 0 0 1-1.8-1.8V16"
+                  stroke="currentColor" stroke-width="1.9" fill="none"
+                  stroke-linecap="round"/>
+                <path d="M8.6 9h6.8M12 9v6"
+                  stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <small>OCR Text</small>
           </button>
 
           <button
             id="rotateBtn"
             class="adjust-btn"
           >
-            <span>↻</span>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19.4 13a7.4 7.4 0 1 1-2.2-5.4l2.2 2.2"
+                  stroke="currentColor" stroke-width="1.9" fill="none"
+                  stroke-linecap="round"/>
+                <path d="M20 4.6v5.4h-5.4"
+                  stroke="currentColor" stroke-width="1.9" fill="none"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
             <small>Rotate</small>
           </button>
 
@@ -627,7 +872,16 @@
             id="resetEditBtn"
             class="adjust-btn"
           >
-            <span>↺</span>
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4.6 11a7.4 7.4 0 1 1 2.2 5.4L4.6 14.2"
+                  stroke="currentColor" stroke-width="1.9" fill="none"
+                  stroke-linecap="round"/>
+                <path d="M4 19.4V14h5.4"
+                  stroke="currentColor" stroke-width="1.9" fill="none"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
             <small>Reset</small>
           </button>
 
@@ -694,16 +948,21 @@
       <button
         id="exportBackBtn"
         class="circle-btn"
+        aria-label="Back"
       >
-        ‹
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14.6 5.4 8 12l6.6 6.6"
+            stroke="currentColor" stroke-width="2.1" fill="none"
+            stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
 
-      <div>
+      <div class="editor-title">
         <strong>Export Document</strong>
         <span>Ready to save</span>
       </div>
 
-      <div></div>
+      <div class="editor-header-actions"></div>
 
     </header>
 
@@ -713,10 +972,17 @@
       <div class="document-preview-card">
 
         <div class="preview-icon">
-          📄
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6.5 3.5h7l4.5 4.5v12a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1.5-1.5Z"
+              stroke="currentColor" stroke-width="1.8" fill="none"
+              stroke-linejoin="round"/>
+            <path d="M13.2 3.6V8h4.6"
+              stroke="currentColor" stroke-width="1.8" fill="none"
+              stroke-linejoin="round"/>
+          </svg>
         </div>
 
-        <div>
+        <div class="preview-meta">
 
           <strong id="exportName">
             My Document
@@ -731,6 +997,7 @@
         <button
           id="favoriteBtn"
           class="favorite-btn"
+          aria-label="Favorite"
         >
           ☆
         </button>
@@ -740,7 +1007,7 @@
 
       <div class="export-section">
 
-        <label>
+        <label for="documentNameInput">
           Document name
         </label>
 
@@ -924,10 +1191,19 @@
 
       <div class="export-info">
 
-        <span>✓</span>
+        <span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3.4 19.4 6.4v5.2c0 4.3-3 8.1-7.4 9.2-4.4-1.1-7.4-4.9-7.4-9.2V6.4Z"
+              stroke="currentColor" stroke-width="1.8" fill="none"
+              stroke-linejoin="round"/>
+            <path d="m9 12 2.2 2.2 4-4.2"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
 
         <p>
-          Your document will be saved locally on this device.
+          Your document is stored only on this device.
         </p>
 
       </div>
@@ -958,7 +1234,7 @@
 
     <header class="list-header">
 
-      <div>
+      <div class="list-header-text">
         <strong>My Scans</strong>
         <span id="documentsCount">
           0 documents
@@ -970,7 +1246,14 @@
         class="circle-btn"
         aria-label="Trash"
       >
-        🗑
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4.6 6.6h14.8M9.4 6.6V4.8a1.2 1.2 0 0 1 1.2-1.2h2.8a1.2 1.2 0 0 1 1.2 1.2v1.8"
+            stroke="currentColor" stroke-width="1.9" fill="none"
+            stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M6.4 6.6h11.2l-.8 12.2a1.6 1.6 0 0 1-1.6 1.5H8.8a1.6 1.6 0 0 1-1.6-1.5Z"
+            stroke="currentColor" stroke-width="1.9" fill="none"
+            stroke-linejoin="round"/>
+        </svg>
       </button>
 
     </header>
@@ -980,7 +1263,14 @@
 
       <div class="search-row">
 
-        <span class="search-icon">⌕</span>
+        <span class="search-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.4"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+            <path d="m15.8 15.8 4.7 4.7"
+              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+        </span>
 
         <input
           id="documentsSearch"
@@ -1038,29 +1328,63 @@
     <nav class="bottom-nav">
 
       <button class="nav-item" data-nav="home">
-        <span>⌂</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 10.4 12 4l8 6.4V19a1.6 1.6 0 0 1-1.6 1.6H5.6A1.6 1.6 0 0 1 4 19Z"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linejoin="round"/>
+          </svg>
+        </span>
         <small>Home</small>
       </button>
 
-      <button class="nav-item active">
-        <span>▤</span>
-        <small>Scans</small>
+      <button class="nav-item active" data-nav="documents">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4.4" y="3.6" width="15.2" height="16.8" rx="2.2"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+            <path d="M8 8.4h8M8 12h8M8 15.6h5"
+              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <small>Documents</small>
       </button>
 
       <button
         class="nav-scan"
         id="documentsScanBtn"
+        aria-label="Scan"
       >
-        +
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4.5 9V6.8A2.3 2.3 0 0 1 6.8 4.5H9M15 4.5h2.2A2.3 2.3 0 0 1 19.5 6.8V9M19.5 15v2.2a2.3 2.3 0 0 1-2.3 2.3H15M9 19.5H6.8a2.3 2.3 0 0 1-2.3-2.3V15"
+            stroke="currentColor" stroke-width="2.2" fill="none"
+            stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="2.9"
+            stroke="currentColor" stroke-width="2.2" fill="none"/>
+        </svg>
       </button>
 
       <button class="nav-item" data-nav="favorites">
-        <span>☆</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m12 4.6 2.4 4.9 5.4.8-3.9 3.8.9 5.3-4.8-2.5-4.8 2.5.9-5.3-3.9-3.8 5.4-.8Z"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linejoin="round"/>
+          </svg>
+        </span>
         <small>Favorites</small>
       </button>
 
       <button class="nav-item" data-nav="settings">
-        <span>⚙</span>
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+            <path d="M19.1 14.6a1.5 1.5 0 0 0 .3 1.7l.1.1a1.8 1.8 0 1 1-2.5 2.5l-.1-.1a1.5 1.5 0 0 0-2.6 1v.3a1.8 1.8 0 1 1-3.6 0v-.2a1.5 1.5 0 0 0-2.6-1l-.1.1a1.8 1.8 0 1 1-2.5-2.5l.1-.1a1.5 1.5 0 0 0-1-2.6h-.2a1.8 1.8 0 1 1 0-3.6h.2a1.5 1.5 0 0 0 1-2.6l-.1-.1a1.8 1.8 0 1 1 2.5-2.5l.1.1a1.5 1.5 0 0 0 2.6-1V3.8a1.8 1.8 0 1 1 3.6 0V4a1.5 1.5 0 0 0 2.6 1l.1-.1a1.8 1.8 0 1 1 2.5 2.5l-.1.1a1.5 1.5 0 0 0 1 2.6h.3a1.8 1.8 0 1 1 0 3.6h-.2a1.5 1.5 0 0 0-1.4 1Z"
+              stroke="currentColor" stroke-width="1.6" fill="none"
+              stroke-linejoin="round"/>
+          </svg>
+        </span>
         <small>Settings</small>
       </button>
 
@@ -1078,7 +1402,7 @@
 
     <header class="list-header">
 
-      <div>
+      <div class="list-header-text">
         <strong>Pages</strong>
         <span id="pagesSubtitle">0 pages</span>
       </div>
@@ -1086,8 +1410,13 @@
       <button
         id="pagesBackBtn"
         class="circle-btn"
+        aria-label="Back"
       >
-        ‹
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14.6 5.4 8 12l6.6 6.6"
+            stroke="currentColor" stroke-width="2.1" fill="none"
+            stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
 
     </header>
@@ -1108,7 +1437,16 @@
         id="pagesEmpty"
         class="pages-empty hidden"
       >
-        <div class="empty-icon">📄</div>
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6.5 3.5h7l4.5 4.5v12a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1.5-1.5Z"
+              stroke="currentColor" stroke-width="1.7" fill="none"
+              stroke-linejoin="round"/>
+            <path d="M13.2 3.6V8h4.6"
+              stroke="currentColor" stroke-width="1.7" fill="none"
+              stroke-linejoin="round"/>
+          </svg>
+        </div>
         <strong>No pages yet</strong>
         <span>Scan or import a page to get started.</span>
       </div>
@@ -1146,7 +1484,7 @@
 
     <header class="list-header">
 
-      <div>
+      <div class="list-header-text">
         <strong>Settings</strong>
         <span>WebScan preferences</span>
       </div>
@@ -1154,8 +1492,13 @@
       <button
         id="settingsBackBtn"
         class="circle-btn"
+        aria-label="Back"
       >
-        ‹
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14.6 5.4 8 12l6.6 6.6"
+            stroke="currentColor" stroke-width="2.1" fill="none"
+            stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </button>
 
     </header>
@@ -1174,7 +1517,13 @@
           class="setting-row"
         >
 
-          <span class="setting-icon">◐</span>
+          <span class="setting-icon tint-violet">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 14.4A8.4 8.4 0 0 1 9.6 4 8.4 8.4 0 1 0 20 14.4Z"
+                stroke="currentColor" stroke-width="1.9" fill="none"
+                stroke-linejoin="round"/>
+            </svg>
+          </span>
 
           <span class="setting-content">
             <strong>Dark Mode</strong>
@@ -1201,7 +1550,13 @@
           class="setting-row"
         >
 
-          <span class="setting-icon">✦</span>
+          <span class="setting-icon tint-teal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m12 3.4 2.3 4.7 5.2.8-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1-3.8-3.6 5.2-.8Z"
+                stroke="currentColor" stroke-width="1.8" fill="none"
+                stroke-linejoin="round"/>
+            </svg>
+          </span>
 
           <span class="setting-content">
             <strong>Auto Capture</strong>
@@ -1220,7 +1575,13 @@
           class="setting-row"
         >
 
-          <span class="setting-icon">▣</span>
+          <span class="setting-icon tint-teal">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3.6 8V5.4a1.8 1.8 0 0 1 1.8-1.8H8M16 3.6h2.6a1.8 1.8 0 0 1 1.8 1.8V8M20.4 16v2.6a1.8 1.8 0 0 1-1.8 1.8H16M8 20.4H5.4a1.8 1.8 0 0 1-1.8-1.8V16"
+                stroke="currentColor" stroke-width="1.9" fill="none"
+                stroke-linecap="round"/>
+            </svg>
+          </span>
 
           <span class="setting-content">
             <strong>Show Scan Frame</strong>
@@ -1247,14 +1608,23 @@
           class="setting-row danger-row"
         >
 
-          <span class="setting-icon">♲</span>
+          <span class="setting-icon tint-rose">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4.6 6.6h14.8M9.4 6.6V4.8a1.2 1.2 0 0 1 1.2-1.2h2.8a1.2 1.2 0 0 1 1.2 1.2v1.8"
+                stroke="currentColor" stroke-width="1.9" fill="none"
+                stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M6.4 6.6h11.2l-.8 12.2a1.6 1.6 0 0 1-1.6 1.5H8.8a1.6 1.6 0 0 1-1.6-1.5Z"
+                stroke="currentColor" stroke-width="1.9" fill="none"
+                stroke-linejoin="round"/>
+            </svg>
+          </span>
 
           <span class="setting-content">
             <strong>Clear Local Data</strong>
             <small>Delete saved WebScan documents</small>
           </span>
 
-          <span>›</span>
+          <span class="setting-chevron">›</span>
 
         </button>
 

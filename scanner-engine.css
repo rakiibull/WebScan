@@ -2,7 +2,25 @@
 /* =========================================================
    WebScan Advanced Camera UI
    iPhone / Mobile Scanner Style
+
+   Colours here are deliberately literal rather than themed:
+   the camera is always a dark, full-bleed surface regardless
+   of the app's light/dark setting, so it stays legible over
+   a live video feed.
+
+   Positioning rules in this file are load-bearing. The crop
+   editor maps touch points through `object-fit: contain` and
+   the live overlay maps detected corners through a stretched
+   0-100 viewBox, so geometry must not be "tidied".
    ========================================================= */
+
+.ws-pro-camera {
+  /* Accent shared with the app's teal, kept as a local token so the
+     camera chrome can be retuned without touching each rule. */
+  --ws-accent: #35f6bd;
+  --ws-glass:  rgba(18, 21, 27, 0.6);
+  --ws-hairline: rgba(255, 255, 255, 0.12);
+}
 
 #cameraScreen.ws-pro-camera {
   position: fixed;
@@ -56,8 +74,8 @@
 }
 
 .ws-camera-top-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 50%;
   color: #fff;
@@ -67,11 +85,18 @@
   -webkit-backdrop-filter: blur(16px);
   font-weight: 800;
   font-size: 14px;
+  transition: transform .15s ease, background .15s ease, color .15s ease;
+}
+
+.ws-camera-top-btn:active {
+  transform: scale(.9);
 }
 
 .ws-camera-top-btn.ws-active {
-  background: rgba(255,255,255,.92);
-  color: #111;
+  background: var(--ws-accent, #35f6bd);
+  color: #04231c;
+  border-color: transparent;
+  box-shadow: 0 6px 20px rgba(53, 246, 189, .34);
 }
 
 #cameraScreen.ws-pro-camera .camera-view {
@@ -123,6 +148,22 @@
   box-shadow:
     0 0 24px rgba(54,255,197,.12),
     0 0 0 9999px rgba(0,0,0,.08);
+}
+
+/*
+  ID Card mode guide.
+
+  The engine sets aspect-ratio and width inline from the mode profile,
+  so the card ratio has a single source of truth in the JS. What is
+  styled here is only the placement and look: a card is held closer to
+  the middle of the frame than a page, so the guide is centred rather
+  than sitting in the upper portion of the preview.
+*/
+#cameraScreen.ws-pro-camera .scan-frame.ws-guide-card {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 14px;
 }
 
 #cameraScreen.ws-pro-camera .corner {
@@ -296,12 +337,65 @@
   color: rgba(255,255,255,.68);
   font-size: 12px;
   font-weight: 700;
-  padding: 7px 0;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 9px 14px;
+  border-radius: 999px;
   white-space: nowrap;
+  transition: color .15s ease, background .15s ease;
 }
 
 .ws-mode.active {
-  color: #35f6bd;
+  color: #04231c;
+  background: var(--ws-accent, #35f6bd);
+  box-shadow: 0 6px 18px rgba(53, 246, 189, .32);
+}
+
+
+/* =========================================================
+   PAGE COUNT CHIP
+   Injected by scanner-engine.js; shows how many pages are
+   already captured without leaving the camera.
+   ========================================================= */
+
+.ws-pages-chip {
+  position: absolute;
+  left: 14px;
+  top: calc(max(10px, env(safe-area-inset-top)) + 65px);
+  z-index: 40;
+
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 7px 12px;
+  border-radius: 999px;
+
+  background: var(--ws-glass, rgba(18,21,27,.6));
+  border: 1px solid var(--ws-hairline, rgba(255,255,255,.12));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+
+  color: rgba(255,255,255,.86);
+  font-size: 11px;
+  font-weight: 700;
+
+  pointer-events: none;
+}
+
+.ws-pages-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+
+  display: inline-grid;
+  place-items: center;
+
+  border-radius: 999px;
+  background: var(--ws-accent, #35f6bd);
+  color: #04231c;
+  font-size: 10.5px;
+  font-weight: 800;
 }
 
 #cameraScreen.ws-pro-camera .camera-toolbar {

@@ -258,6 +258,122 @@
   */
   const MAX_TILT_DEGREES = 25;
 
+
+  /* ---------------------------------------------------------
+     SCAN MODE PROFILES
+
+     A mode is a set of geometry rules, not a label. Each profile
+     says what shape the mode is looking for and what shape it
+     should produce, and the detection, scoring and warping steps
+     all read from the same profile so they cannot disagree.
+     --------------------------------------------------------- */
+
+  /*
+    ISO/IEC 7810 ID-1: 85.60 x 53.98 mm. Driving licences, national
+    ID cards, credit and insurance cards all use it, so a single
+    ratio covers the overwhelming majority of what people scan in
+    this mode.
+  */
+  const ID_CARD_RATIO = 85.6 / 53.98;   // ~1.586
+
+  /*
+    How far a detected quad's ratio may sit from the card ratio and
+    still be snapped to it.
+
+    This has to clear ordinary perspective on a real card without
+    swallowing other paper sizes. A4 is the binding constraint: it
+    measures 1.414, only 0.17 away from the card's 1.586, and pulling
+    an A4 page into card proportions would badly distort a document
+    someone scanned while the mode happened to be on.
+
+    0.13 sits below that gap while still accepting a card tilted far
+    enough to measure ~1.46-1.72. Anything outside is left at its
+    measured ratio rather than being reshaped into a card it is not.
+  */
+  const ID_CARD_RATIO_TOLERANCE = 0.13;
+
+  const SCAN_MODES = {
+
+    Scan: {
+      // Faithful reproduction: whatever shape was detected is kept.
+      targetRatio: null,
+
+      // Gate for "move closer" guidance.
+      minAreaRatio: MIN_DOC_AREA_RATIO,
+
+      // Floor below which detection will not even consider a shape.
+      minScoreAreaRatio: 0.08,
+
+      guide: null,
+    },
+
+    "ID Card": {
+      /*
+        Cards are small objects held close, so they occupy far less of
+        the frame than a sheet of paper. Reusing the page thresholds
+        here would reject a perfectly framed card as "too far away".
+
+        The two floors differ on purpose: detection considers shapes
+        well below the size at which the user is told to move closer,
+        so the card is tracked and outlined as they bring it in rather
+        than snapping into existence at the threshold.
+      */
+      targetRatio: ID_CARD_RATIO,
+      minAreaRatio: 0.07,
+      minScoreAreaRatio: 0.025,
+      guide: ID_CARD_RATIO,
+    },
+  };
+
+  function modeProfile(name = mode) {
+    return SCAN_MODES[name] || SCAN_MODES.Scan;
+  }
+
+  /*
+    Chooses the output shape for a corrected scan.
+
+    Perspective correction has to pick an output size. Measuring it
+    from the detected corners is right for paper, but for a card it
+    bakes in whatever foreshortening the camera angle introduced --
+    a licence shot from slightly above comes out visibly squashed.
+
+    In ID Card mode the measured ratio is replaced by the real card
+    ratio when it is close enough to be that card, so the result has
+    true proportions instead of the ones the lens happened to see.
+    The longer measured edge is preserved so no detail is lost.
+  */
+  function resolveOutputSize(width, height, profile = modeProfile()) {
+    const target = profile?.targetRatio;
+
+    if (!target || width <= 0 || height <= 0) {
+      return { width, height, snapped: false };
+    }
+
+    // Cards are scanned in either orientation; match whichever the
+    // user actually held rather than forcing landscape.
+    const portrait = height > width;
+    const measured = portrait ? height / width : width / height;
+
+    if (Math.abs(measured - target) > ID_CARD_RATIO_TOLERANCE) {
+      return { width, height, snapped: false };
+    }
+
+    // Keep the longer side; derive the shorter one from the true ratio.
+    if (portrait) {
+      return {
+        width: Math.max(1, Math.round(height / target)),
+        height,
+        snapped: true,
+      };
+    }
+
+    return {
+      width,
+      height: Math.max(1, Math.round(width / target)),
+      snapped: true,
+    };
+  }
+
   /*
     Measures sharpness and exposure on the grayscale preview.
     Returns null when OpenCV cannot run, so callers fall back to
@@ -317,7 +433,16 @@
     `ok` gates auto capture; `message` is what the user is told.
     Ordered so the most actionable problem is reported first.
   */
-  function evaluateCaptureReadiness(corners, quality, frameW, frameH) {
+  function evaluateCaptureReadiness(
+    corners, quality, frameW, frameH,
+    /*
+      Minimum share of the frame the subject must fill. Defaults to the
+      paper threshold; ID Card mode passes its own smaller value, since
+      a card at a natural distance never fills as much as a page and
+      would otherwise be told to "move closer" indefinitely.
+    */
+    minAreaRatio = MIN_DOC_AREA_RATIO
+  ) {
     if (!corners) {
       return { ok: false, message: msg("searching", "Place the document inside the frame.") };
     }
@@ -325,7 +450,7 @@
     const frameArea = frameW * frameH;
     const areaRatio = polygonArea(corners) / frameArea;
 
-    if (areaRatio < MIN_DOC_AREA_RATIO) {
+    if (areaRatio < minAreaRatio) {
       return { ok: false, message: msg("tooFar", "Move closer to the document.") };
     }
 
@@ -514,7 +639,7 @@
   modeBar.className = "ws-mode-bar";
   modeBar.innerHTML = `
     <button class="ws-mode" data-mode="Text">Text</button>
-    <button class="ws-mode" data-mode="ID Cards">ID Cards</button>
+    <button class="ws-mode" data-mode="ID Card">ID Card</button>
     <button class="ws-mode" data-mode="Sign">Sign</button>
     <button class="ws-mode active" data-mode="Scan">Scan</button>
     <button class="ws-mode" data-mode="To Word">To Word</button>
@@ -617,15 +742,27 @@
     Returns 0 when the shape should be rejected outright, which is what
     keeps false detections off the screen.
   */
-  function scoreQuad(ordered, imageArea) {
+  /*
+    `profile` is passed explicitly so scoring depends on its arguments
+    rather than on module state. It defaults to the active mode, so
+    callers in the app are unaffected.
+  */
+  function scoreQuad(ordered, imageArea, profile = modeProfile()) {
     const [tl, tr, br, bl] = ordered;
 
     const area = polygonArea(ordered);
     const ratio = area / imageArea;
 
-    // Too small to be the document being scanned, or so large it is
-    // almost certainly the video frame border itself.
-    if (ratio < 0.08 || ratio > 0.97) return 0;
+    /*
+      Too small to be the document being scanned, or so large it is
+      almost certainly the video frame border itself.
+
+      The lower bound follows the mode: a card held at a comfortable
+      distance covers far less of the frame than a sheet of paper, and
+      the paper threshold would discard it before scoring ever ran.
+    */
+    const minArea = profile?.minScoreAreaRatio ?? 0.08;
+    if (ratio < minArea || ratio > 0.97) return 0;
 
     const top = distance(tl, tr);
     const right = distance(tr, br);
@@ -666,6 +803,25 @@
 
     const angleScore = Math.max(0, 1 - (angleError / 160));
     const shapeScore = (horizontalRatio + verticalRatio) / 2;
+
+    const target = profile?.targetRatio;
+
+    /*
+      Without a target ratio, larger candidates win. That is correct for
+      paper but wrong for a card: a card fills little of the frame, so
+      area weighting favours the desk edge or the hand holding it over
+      the card itself.
+
+      When a mode declares a target shape, closeness to that shape
+      carries most of the weight and area is demoted to a tie-breaker.
+    */
+    if (target) {
+      const ratioError = Math.abs(aspect - target) / target;
+      const fitScore = Math.max(0, 1 - ratioError);
+
+      return fitScore * 0.5 + angleScore * 0.3
+        + shapeScore * 0.15 + ratio * 0.05;
+    }
 
     // Larger, squarer, better-proportioned candidates win.
     return ratio * 0.45 + angleScore * 0.35 + shapeScore * 0.20;
@@ -1051,7 +1207,8 @@
         corners,
         quality,
         frameW,
-        frameH
+        frameH,
+        modeProfile().minAreaRatio
       );
 
       // The outline must also have stopped moving. Both conditions are
@@ -1103,8 +1260,14 @@
 
         pendingFrame = { width: frame.width, height: frame.height };
 
+        /*
+          The active mode profile travels with the frame so the live
+          outline is scored the same way the capture will be. Sending
+          it per frame rather than caching it in the worker means a
+          mode switch takes effect on the very next frame.
+        */
         worker.postMessage(
-          { type: "detect", id: ++frameId, imageData },
+          { type: "detect", id: ++frameId, imageData, profile: modeProfile() },
           [imageData.data.buffer]
         );
 
@@ -1252,10 +1415,22 @@
       const heightB = distance(tl, bl);
       const maxHeight = Math.max(1, Math.round(Math.max(heightA, heightB)));
 
+      /*
+        In ID Card mode the measured shape is replaced by the true card
+        ratio before scaling, so perspective foreshortening is corrected
+        rather than preserved. Other modes are unaffected: their profile
+        has no target ratio and the measured size passes straight through.
+      */
+      const shaped = resolveOutputSize(maxWidth, maxHeight);
+
       const maxOutput = 3000;
-      const scale = Math.min(1, maxOutput / Math.max(maxWidth, maxHeight));
-      const outW = Math.max(1, Math.round(maxWidth * scale));
-      const outH = Math.max(1, Math.round(maxHeight * scale));
+      const scale = Math.min(
+        1,
+        maxOutput / Math.max(shaped.width, shaped.height)
+      );
+
+      const outW = Math.max(1, Math.round(shaped.width * scale));
+      const outH = Math.max(1, Math.round(shaped.height * scale));
 
       src = cv.imread(sourceCanvas);
 
@@ -1444,6 +1619,37 @@
   // Capture phase runs before script.js's normal click listener.
   captureBtn.addEventListener("click", enhancedCapture, true);
 
+  /*
+    Reshapes the on-screen guide to match the mode's target shape.
+
+    The guide is what the user aims with, so in a mode that expects a
+    specific shape it has to show that shape. Without this the card
+    mode would still draw a portrait page outline and quietly correct
+    to a card afterwards, which reads as a bug.
+  */
+  function applyModeGuide() {
+    const frame = cameraScreen.querySelector(".scan-frame");
+    if (!frame) return;
+
+    const guide = modeProfile().guide;
+
+    if (guide) {
+      // Landscape card: wide and short, centred in the preview.
+      frame.style.aspectRatio = String(guide);
+      frame.style.width = "min(86%, 380px)";
+      frame.style.height = "auto";
+      frame.style.top = "";
+      frame.classList.add("ws-guide-card");
+    } else {
+      // Restore the stylesheet's own page-shaped guide.
+      frame.style.aspectRatio = "";
+      frame.style.width = "";
+      frame.style.height = "";
+      frame.style.top = "";
+      frame.classList.remove("ws-guide-card");
+    }
+  }
+
   document.addEventListener("click", (event) => {
     const btn = event.target.closest?.(".ws-mode");
     if (!btn) return;
@@ -1453,7 +1659,17 @@
       el.classList.toggle("active", el === btn);
     });
 
-    setStatus(`${mode} mode`, "ready");
+    applyModeGuide();
+
+    // Naming what the mode will do is more useful than echoing its name.
+    const profile = modeProfile();
+
+    setStatus(
+      profile.targetRatio
+        ? "ID Card mode — fit the card inside the guide"
+        : `${mode} mode`,
+      "ready"
+    );
   });
 
   const topFlash = $("wsFlashTop");

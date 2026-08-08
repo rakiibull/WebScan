@@ -281,12 +281,36 @@ function goHome() {
 }
 
 
-function goDocuments() {
+/*
+  Opens the document list.
+
+  `filter` selects which chip the list lands on. The Favorites entry
+  points previously routed here without one, so tapping Favorites
+  showed every document -- the filtering itself already existed and
+  simply was never switched on.
+*/
+function goDocuments(filter) {
 
   stopCamera();
 
+
+  if (filter) {
+
+    state.folderFilter = filter;
+
+    // Trash is a separate view; arriving from Favorites should leave it.
+    state.showTrash = false;
+
+    // Keeps the trash button and "Empty trash" action in step with the
+    // state change above (hoisted; defined with the trash handlers).
+    applyTrashView();
+
+  }
+
+
   showScreen("documents");
 
+  // renderDocuments() refreshes the chips itself.
   renderDocuments();
 
 }
@@ -4090,13 +4114,13 @@ document
 
         if (action === "documents") {
 
-          goDocuments();
+          goDocuments("all");
 
         }
 
         if (action === "favorites") {
 
-          goDocuments();
+          goDocuments("favorites");
 
         }
 
@@ -4681,6 +4705,37 @@ $("folderChips")
 
 /* TRASH */
 
+/*
+  Brings the trash chrome in line with state.showTrash.
+
+  Kept separate from the toggle handler because more than one path can
+  leave the trash view (tapping Favorites, for example). When the sync
+  lived inline, those paths changed the state but left the button lit
+  and the "Empty trash" action visible.
+*/
+function applyTrashView() {
+
+  $("trashToggleBtn").classList.toggle(
+    "active",
+    state.showTrash
+  );
+
+
+  $("emptyTrashBtn").classList.toggle(
+    "hidden",
+    !state.showTrash
+  );
+
+
+  // Folder filters do not apply inside trash.
+  $("folderChips").classList.toggle(
+    "hidden",
+    state.showTrash
+  );
+
+}
+
+
 $("trashToggleBtn")
   .addEventListener(
     "click",
@@ -4689,14 +4744,7 @@ $("trashToggleBtn")
       state.showTrash = !state.showTrash;
 
 
-      $("trashToggleBtn").classList.toggle(
-        "active",
-        state.showTrash
-      );
-
-
-      // Folder filters do not apply inside trash, so the view resets to
-      // showing everything that was deleted.
+      // Trash shows everything that was deleted, regardless of folder.
       if (state.showTrash) {
 
         state.folderFilter = "all";
@@ -4704,17 +4752,7 @@ $("trashToggleBtn")
       }
 
 
-      $("emptyTrashBtn").classList.toggle(
-        "hidden",
-        !state.showTrash
-      );
-
-
-      $("folderChips").classList.toggle(
-        "hidden",
-        state.showTrash
-      );
-
+      applyTrashView();
 
       renderDocuments();
 
@@ -5176,13 +5214,13 @@ document
 
         if (nav === "documents") {
 
-          goDocuments();
+          goDocuments("all");
 
         }
 
         if (nav === "favorites") {
 
-          goDocuments();
+          goDocuments("favorites");
 
         }
 

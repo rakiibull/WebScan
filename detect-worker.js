@@ -81,13 +81,26 @@ function cornerAngle(a, b, c) {
   return Math.acos(Math.max(-1, Math.min(1, cos))) * (180 / Math.PI);
 }
 
-function scoreQuad(ordered, imageArea) {
+/*
+  Mirrors the main thread's scoring, including mode profiles.
+
+  The worker draws the live outline, so it has to agree with the mode
+  the user selected. If it always scored for paper, ID Card mode would
+  outline the wrong object on screen and then capture a different one,
+  because capture re-runs detection on the main thread where the
+  profile does apply.
+
+  The profile arrives with each frame rather than being stored, so the
+  worker holds no state that could drift out of sync with the UI.
+*/
+function scoreQuad(ordered, imageArea, profile = null) {
   const [tl, tr, br, bl] = ordered;
 
   const area = polygonArea(ordered);
   const ratio = area / imageArea;
 
-  if (ratio < 0.08 || ratio > 0.97) return 0;
+  const minArea = profile?.minScoreAreaRatio ?? 0.08;
+  if (ratio < minArea || ratio > 0.97) return 0;
 
   const top = distance(tl, tr);
   const right = distance(tr, br);
@@ -104,7 +117,8 @@ function scoreQuad(ordered, imageArea) {
 
   if (horizontalRatio < 0.55 || verticalRatio < 0.55) return 0;
 
-  if (maxSide / minSide > 6) return 0;
+  const aspect = maxSide / minSide;
+  if (aspect > 6) return 0;
 
   const angles = [
     cornerAngle(bl, tl, tr),
@@ -121,6 +135,18 @@ function scoreQuad(ordered, imageArea) {
 
   const angleScore = Math.max(0, 1 - (angleError / 160));
   const shapeScore = (horizontalRatio + verticalRatio) / 2;
+
+  const target = profile?.targetRatio;
+
+  // Same weighting as the main thread: shape first when a mode
+  // declares a target, area first otherwise.
+  if (target) {
+    const ratioError = Math.abs(aspect - target) / target;
+    const fitScore = Math.max(0, 1 - ratioError);
+
+    return fitScore * 0.5 + angleScore * 0.3
+      + shapeScore * 0.15 + ratio * 0.05;
+  }
 
   return ratio * 0.45 + angleScore * 0.35 + shapeScore * 0.20;
 }
@@ -180,7 +206,7 @@ function collectCandidates(edges, imageArea, onCandidate) {
    DOM. ImageData is transferred, not copied.
    --------------------------------------------------------- */
 
-function detect(imageData) {
+function detect(imageData, profile) {
   const mats = [];
   const track = (mat) => { mats.push(mat); return mat; };
 
@@ -198,7 +224,7 @@ function detect(imageData) {
     let bestScore = 0;
 
     const consider = (ordered) => {
-      const score = scoreQuad(ordered, imageArea);
+      const score = scoreQuad(ordered, imageArea, profile);
       if (score > bestScore) {
         bestScore = score;
         best = ordered;
@@ -317,7 +343,7 @@ self.onmessage = (event) => {
   }
 
   const started = Date.now();
-  const result = detect(data.imageData);
+  const result = detect(data.imageData, data.profile || null);
 
   self.postMessage({
     type: "result",
