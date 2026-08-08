@@ -1,349 +1,511 @@
 /* =========================================================
-   WebScan Advanced Scanner Engine
-   Auto Edge Detection + Scanner Overlay
-========================================================= */
+   WebScan Advanced Camera UI
+   iPhone / Mobile Scanner Style
+   ========================================================= */
 
-#wsScannerOverlay {
+#cameraScreen.ws-pro-camera {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #050608;
+  color: #fff;
+  overflow: hidden;
+  width: 100%;
+  height: 100dvh;
+}
+
+#cameraScreen.ws-pro-camera .camera-header {
+  position: absolute;
+  inset: max(10px, env(safe-area-inset-top)) 0 auto 0;
+  z-index: 40;
+  height: 64px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+#cameraScreen.ws-pro-camera .camera-header > * {
+  pointer-events: auto;
+}
+
+#cameraScreen.ws-pro-camera .circle-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(20,22,28,.58);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 25px rgba(0,0,0,.25);
+}
+
+#cameraScreen.ws-pro-camera .camera-title {
+  display: none;
+}
+
+.ws-camera-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ws-camera-top-btn {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(20,22,28,.58);
+  border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.ws-camera-top-btn.ws-active {
+  background: rgba(255,255,255,.92);
+  color: #111;
+}
+
+#cameraScreen.ws-pro-camera .camera-view {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  pointer-events: none;
-  z-index: 30;
+  background: #000;
   overflow: hidden;
 }
 
-#wsScannerPolygon {
-  fill: rgba(32, 230, 154, 0.08);
-  stroke: #20e69a;
-  stroke-width: 4;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-
-  filter:
-    drop-shadow(
-      0 0 6px rgba(32, 230, 154, 0.65)
-    );
-
-  transition:
-    opacity 0.15s ease;
+#cameraScreen.ws-pro-camera #video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
 }
 
-#wsDetectionBadge {
+#cameraScreen.ws-pro-camera .scanner-overlay {
   position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,.36) 0%,
+    rgba(0,0,0,0) 18%,
+    rgba(0,0,0,0) 70%,
+    rgba(0,0,0,.48) 100%
+  );
+}
 
-  top: 18px;
+#cameraScreen.ws-pro-camera .scan-frame {
+  position: absolute;
+  left: 9%;
+  top: 22%;
+  width: 82%;
+  height: 50%;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.10);
+  transition: all .18s ease;
+}
+
+#cameraScreen.ws-pro-camera .scan-frame.ws-detected {
+  border-color: rgba(54, 255, 197, .72);
+  box-shadow:
+    0 0 24px rgba(54,255,197,.12),
+    0 0 0 9999px rgba(0,0,0,.08);
+}
+
+#cameraScreen.ws-pro-camera .corner {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-color: #fff;
+  border-style: solid;
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,.45));
+}
+
+#cameraScreen.ws-pro-camera .corner.top-left {
+  left: -2px; top: -2px;
+  border-width: 4px 0 0 4px;
+  border-radius: 7px 0 0 0;
+}
+#cameraScreen.ws-pro-camera .corner.top-right {
+  right: -2px; top: -2px;
+  border-width: 4px 4px 0 0;
+  border-radius: 0 7px 0 0;
+}
+#cameraScreen.ws-pro-camera .corner.bottom-left {
+  left: -2px; bottom: -2px;
+  border-width: 0 0 4px 4px;
+  border-radius: 0 0 0 7px;
+}
+#cameraScreen.ws-pro-camera .corner.bottom-right {
+  right: -2px; bottom: -2px;
+  border-width: 0 4px 4px 0;
+  border-radius: 0 0 7px 0;
+}
+
+#cameraScreen.ws-pro-camera .scan-line {
+  display: none;
+}
+
+#cameraScreen.ws-pro-camera .scan-hint {
+  position: absolute;
   left: 50%;
-
+  top: calc(72% + 22px);
   transform: translateX(-50%);
+  width: max-content;
+  max-width: 90%;
+  padding: 7px 13px;
+  border-radius: 20px;
+  background: rgba(10,11,15,.58);
+  color: rgba(255,255,255,.78);
+  font-size: 12px;
+  font-weight: 600;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
 
-  z-index: 40;
+.ws-live-corners {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  pointer-events: none;
+}
 
+.ws-live-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px;
+  border: 2px solid #35f6bd;
+  border-radius: 50%;
+  background: rgba(53,246,189,.22);
+  box-shadow: 0 0 14px rgba(53,246,189,.35);
+  transform: translate(-50%, -50%);
+  transition: left .15s ease, top .15s ease;
+}
+
+.ws-live-status {
+  position: absolute;
+  left: 50%;
+  top: calc(max(10px, env(safe-area-inset-top)) + 70px);
+  transform: translateX(-50%);
+  z-index: 30;
   display: flex;
   align-items: center;
-  gap: 9px;
-
-  min-height: 36px;
-  padding: 8px 14px;
-
-  border-radius: 999px;
-
-  background:
-    rgba(8, 12, 18, 0.78);
-
-  border:
-    1px solid rgba(255, 255, 255, 0.12);
-
-  color: #ffffff;
-
-  font-size: 13px;
-  font-weight: 600;
-
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 18px;
+  background: rgba(10,12,16,.58);
+  border: 1px solid rgba(255,255,255,.1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: rgba(255,255,255,.85);
+  font-size: 11px;
+  font-weight: 700;
   white-space: nowrap;
-
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-
-  box-shadow:
-    0 8px 30px rgba(0, 0, 0, 0.25);
-
-  transition:
-    all 0.25s ease;
+  pointer-events: none;
 }
 
-#wsDetectionDot {
-  width: 8px;
-  height: 8px;
-
-  flex: 0 0 8px;
-
+.ws-live-status i {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-
-  background: #ffb020;
-
-  box-shadow:
-    0 0 10px rgba(255, 176, 32, 0.85);
-
-  animation:
-    wsDetectionPulse 1.25s ease-in-out infinite;
+  background: #ffb300;
+  box-shadow: 0 0 9px rgba(255,179,0,.5);
 }
 
-#wsDetectionBadge.detected {
-  background:
-    rgba(6, 52, 36, 0.84);
-
-  border-color:
-    rgba(32, 230, 154, 0.35);
-
-  box-shadow:
-    0 8px 30px rgba(0, 0, 0, 0.25),
-    0 0 20px rgba(32, 230, 154, 0.08);
+.ws-live-status.ready i {
+  background: #35f6bd;
+  box-shadow: 0 0 9px rgba(53,246,189,.55);
 }
 
-#wsDetectionBadge.detected #wsDetectionDot {
-  background: #20e69a;
-
-  box-shadow:
-    0 0 12px rgba(32, 230, 154, 0.95);
-
-  animation: none;
+.ws-live-status.error i {
+  background: #ff5b67;
 }
 
+#cameraScreen.ws-pro-camera .camera-status,
+#cameraScreen.ws-pro-camera .camera-pages {
+  display: none;
+}
 
-/* =========================================================
-   Corner handles
-========================================================= */
-
-.ws-corner-handle {
+.ws-mode-bar {
   position: absolute;
-
-  width: 18px;
-  height: 18px;
-
-  border-color: #20e69a;
-  border-style: solid;
-
-  filter:
-    drop-shadow(
-      0 0 5px rgba(32, 230, 154, 0.75)
-    );
+  left: 0;
+  right: 0;
+  bottom: calc(108px + env(safe-area-inset-bottom));
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  overflow-x: auto;
+  padding: 0 18px;
+  scrollbar-width: none;
 }
 
-.ws-corner-tl {
-  border-width: 4px 0 0 4px;
+.ws-mode-bar::-webkit-scrollbar {
+  display: none;
 }
 
-.ws-corner-tr {
-  border-width: 4px 4px 0 0;
+.ws-mode {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,.68);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 0;
+  white-space: nowrap;
 }
 
-.ws-corner-br {
-  border-width: 0 4px 4px 0;
+.ws-mode.active {
+  color: #35f6bd;
 }
 
-.ws-corner-bl {
-  border-width: 0 0 4px 4px;
+#cameraScreen.ws-pro-camera .camera-toolbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: env(safe-area-inset-bottom);
+  z-index: 40;
+  height: 98px;
+  padding: 8px 26px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(to top, rgba(0,0,0,.92), rgba(0,0,0,.35), transparent);
 }
 
+#cameraScreen.ws-pro-camera .tool-btn {
+  width: 54px;
+  min-width: 54px;
+  height: 58px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
 
-/* =========================================================
-   Capture feedback
-========================================================= */
+#cameraScreen.ws-pro-camera .tool-btn span {
+  font-size: 20px;
+  line-height: 1;
+}
+
+#cameraScreen.ws-pro-camera .tool-btn small {
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255,255,255,.58);
+}
+
+#cameraScreen.ws-pro-camera .capture-btn {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  min-width: 76px;
+  border-radius: 50%;
+  padding: 5px;
+  border: 3px solid rgba(53,246,189,.95);
+  background: transparent;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.22);
+}
+
+#cameraScreen.ws-pro-camera .capture-btn span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #f5f7f8;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.08);
+}
+
+#cameraScreen.ws-pro-camera .capture-btn:active {
+  transform: scale(.93);
+}
+
+#cameraScreen.ws-pro-camera .camera-bottom-actions {
+  position: absolute;
+  right: 14px;
+  top: calc(max(10px, env(safe-area-inset-top)) + 65px);
+  z-index: 40;
+  pointer-events: none;
+}
+
+#cameraScreen.ws-pro-camera .finish-btn {
+  pointer-events: auto;
+  border: 0;
+  border-radius: 18px;
+  padding: 9px 13px;
+  color: #111;
+  background: rgba(255,255,255,.92);
+  font-size: 12px;
+  font-weight: 800;
+}
 
 .ws-capture-flash {
   position: absolute;
   inset: 0;
-
-  z-index: 50;
-
-  background: #ffffff;
-
-  pointer-events: none;
-
+  z-index: 100;
+  background: #fff;
   opacity: 0;
-
-  animation:
-    wsCameraFlash 220ms ease-out;
+  pointer-events: none;
 }
 
-.ws-capture-processing {
+.ws-capture-flash.show {
+  animation: wsFlash .22s ease-out;
+}
+
+@keyframes wsFlash {
+  0% { opacity: .75; }
+  100% { opacity: 0; }
+}
+
+.ws-processing {
   position: absolute;
+  inset: 0;
+  z-index: 120;
+  display: none;
+  place-items: center;
+  background: rgba(0,0,0,.52);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
 
-  left: 50%;
-  bottom: 105px;
+.ws-processing.show {
+  display: grid;
+}
 
-  transform:
-    translateX(-50%);
-
-  z-index: 45;
-
-  display: flex;
-  align-items: center;
-  gap: 9px;
-
-  padding: 10px 15px;
-
-  border-radius: 999px;
-
-  background:
-    rgba(8, 12, 18, 0.84);
-
-  border:
-    1px solid rgba(255, 255, 255, 0.12);
-
-  color: #ffffff;
-
-  font-size: 13px;
-  font-weight: 600;
-
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-
-  box-shadow:
-    0 10px 35px rgba(0, 0, 0, 0.35);
+.ws-processing-card {
+  min-width: 210px;
+  padding: 20px;
+  border-radius: 22px;
+  background: rgba(25,27,33,.9);
+  border: 1px solid rgba(255,255,255,.12);
+  text-align: center;
+  box-shadow: 0 18px 50px rgba(0,0,0,.4);
 }
 
 .ws-processing-spinner {
-  width: 15px;
-  height: 15px;
-
+  width: 34px;
+  height: 34px;
+  margin: 0 auto 12px;
+  border: 3px solid rgba(255,255,255,.18);
+  border-top-color: #35f6bd;
   border-radius: 50%;
-
-  border:
-    2px solid rgba(255, 255, 255, 0.25);
-
-  border-top-color:
-    #20e69a;
-
-  animation:
-    wsSpinner 0.7s linear infinite;
+  animation: wsSpin .7s linear infinite;
 }
 
+@keyframes wsSpin {
+  to { transform: rotate(360deg); }
+}
 
-/* =========================================================
-   Editor scanner tools
-========================================================= */
+.ws-processing-title {
+  font-size: 14px;
+  font-weight: 800;
+}
 
-.ws-auto-crop-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.ws-processing-sub {
+  margin-top: 5px;
+  color: rgba(255,255,255,.58);
+  font-size: 11px;
+}
 
-  margin-left: 7px;
+.ws-mode-sheet {
+  position: fixed;
+  inset: auto 12px calc(106px + env(safe-area-inset-bottom)) 12px;
+  z-index: 80;
+  display: none;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(24,26,32,.96);
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 20px 60px rgba(0,0,0,.45);
+}
 
-  padding: 4px 8px;
+.ws-mode-sheet.show {
+  display: block;
+}
 
-  border-radius: 999px;
+.ws-mode-sheet-title {
+  font-size: 12px;
+  color: rgba(255,255,255,.55);
+  margin-bottom: 10px;
+}
 
-  background:
-    rgba(32, 230, 154, 0.12);
+.ws-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
 
-  color:
-    #20e69a;
-
-  font-size: 10px;
+.ws-mode-option {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 7px;
+  background: rgba(255,255,255,.06);
+  color: #fff;
+  font-size: 11px;
   font-weight: 700;
 }
 
-.ws-auto-crop-badge::before {
-  content: "✓";
+.ws-mode-option.active {
+  background: rgba(53,246,189,.16);
+  color: #35f6bd;
 }
 
-
-/* =========================================================
-   Animations
-========================================================= */
-
-@keyframes wsDetectionPulse {
-
-  0% {
-    opacity: 0.35;
-    transform: scale(0.8);
+@media (min-width: 700px) {
+  #cameraScreen.ws-pro-camera .camera-view {
+    max-width: 520px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(100%, 520px);
   }
 
-  50% {
-    opacity: 1;
-    transform: scale(1);
+  #cameraScreen.ws-pro-camera .camera-header,
+  #cameraScreen.ws-pro-camera .camera-toolbar {
+    left: 50%;
+    right: auto;
+    width: min(100%, 520px);
+    transform: translateX(-50%);
   }
 
-  100% {
-    opacity: 0.35;
-    transform: scale(0.8);
-  }
-}
-
-
-@keyframes wsCameraFlash {
-
-  0% {
-    opacity: 0;
-  }
-
-  20% {
-    opacity: 0.75;
-  }
-
-  100% {
-    opacity: 0;
+  .ws-mode-bar {
+    left: 50%;
+    right: auto;
+    width: min(100%, 520px);
+    transform: translateX(-50%);
   }
 }
 
-
-@keyframes wsSpinner {
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-
-/* =========================================================
-   Mobile
-========================================================= */
-
-@media (max-width: 600px) {
-
-  #wsDetectionBadge {
-    top: 12px;
-
-    min-height: 34px;
-
-    padding:
-      7px 12px;
-
-    font-size: 12px;
+@media (max-height: 650px) {
+  .ws-mode-bar {
+    bottom: 92px;
+    gap: 16px;
   }
 
-  #wsScannerPolygon {
-    stroke-width: 3;
+  #cameraScreen.ws-pro-camera .camera-toolbar {
+    height: 82px;
   }
 
-  .ws-corner-handle {
-    width: 15px;
-    height: 15px;
+  #cameraScreen.ws-pro-camera .capture-btn {
+    width: 64px;
+    height: 64px;
+    min-width: 64px;
   }
-
-  .ws-capture-processing {
-    bottom: 95px;
-
-    font-size: 12px;
-
-    padding:
-      9px 13px;
-  }
-}
-
-
-/* =========================================================
-   Reduced motion
-========================================================= */
-
-@media (prefers-reduced-motion: reduce) {
-
-  #wsDetectionDot,
-  .ws-processing-spinner {
-    animation: none;
-  }
-
 }
