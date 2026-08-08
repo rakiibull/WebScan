@@ -301,6 +301,33 @@
   `;
   cameraScreen.querySelector(".camera-view")?.appendChild(processing);
 
+  /*
+    Page counter that doubles as the entry point to the page manager.
+    The stock thumbnail strip is hidden in this camera layout, so this
+    keeps multi-page sessions reachable without leaving the camera.
+  */
+  const pagesChip = document.createElement("button");
+  pagesChip.type = "button";
+  pagesChip.className = "ws-pages-chip";
+  pagesChip.hidden = true;
+  pagesChip.innerHTML = `<span class="ws-pages-count">0</span> pages`;
+
+  pagesChip.addEventListener("click", () => {
+    window.WebScanPages?.open();
+  });
+
+  cameraScreen.appendChild(pagesChip);
+
+  function syncPagesChip() {
+    const count = window.webscanState?.pages?.length || 0;
+
+    pagesChip.hidden = count === 0;
+    pagesChip.querySelector(".ws-pages-count").textContent = String(count);
+  }
+
+  window.addEventListener("webscan-pages-changed", syncPagesChip);
+  syncPagesChip();
+
   const modeBar = document.createElement("div");
   modeBar.className = "ws-mode-bar";
   modeBar.innerHTML = `

@@ -70,6 +70,8 @@ const screens = {
 
   documents: $("documentsScreen"),
 
+  pages: $("pagesScreen"),
+
   settings: $("settingsScreen")
 };
 
@@ -636,6 +638,17 @@ function updatePages() {
       strip.appendChild(wrapper);
 
     }
+  );
+
+
+  // Keeps the page manager grid current when pages change elsewhere
+  // (capture, import, delete) while it is open.
+  window.WebScanPages?.refresh();
+
+
+  // Lets the camera screen update its page counter chip.
+  window.dispatchEvent(
+    new Event("webscan-pages-changed")
   );
 
 }
@@ -2526,6 +2539,29 @@ $("rotateBtn")
   );
 
 
+$("editorPagesBtn")
+  .addEventListener(
+    "click",
+    () => {
+
+      if (!state.pages.length) {
+
+        showToast(
+          "No pages yet",
+          "!"
+        );
+
+        return;
+
+      }
+
+
+      window.WebScanPages?.open();
+
+    }
+  );
+
+
 $("cropBtn")
   .addEventListener(
     "click",
@@ -2970,6 +3006,146 @@ document.addEventListener(
 
   }
 );
+
+
+
+/* =====================================================
+   PAGE MANAGER BRIDGE
+
+   page-manager.js edits the same state.pages array used
+   everywhere else, and calls back here so the camera strip,
+   editor and counters stay in sync.
+===================================================== */
+
+window.webscanState = state;
+
+window.webscanPageAPI = {
+
+  showScreen,
+
+  showToast,
+
+  updatePages,
+
+  openEditor,
+
+  deletePage,
+
+  fileToDataURL,
+
+
+  addPage() {
+
+    // Reuses the normal capture flow so a page added from the manager
+    // goes through exactly the same pipeline as any other scan.
+    showScreen("camera");
+
+    startCamera();
+
+  },
+
+
+  cropPage(index) {
+
+    const page = state.pages[index];
+
+
+    if (!page || !window.WebScanCrop) {
+
+      showToast(
+        "Crop is unavailable",
+        "!"
+      );
+
+      return;
+
+    }
+
+
+    window.WebScanCrop.open({
+
+      dataUrl: page.src,
+
+      initialCorners: page.corners,
+
+      onApply: (canvas) => {
+
+        page.src =
+          canvas.toDataURL(
+            "image/jpeg",
+            0.95
+          );
+
+        page.corners = null;
+
+        enhanceCache = { key: null, canvas: null };
+
+
+        window.WebScanPages?.refresh();
+
+        updatePages();
+
+
+        if (state.currentPage === index) {
+
+          renderEditor();
+
+        }
+
+
+        showToast("Crop applied");
+
+      }
+
+    });
+
+  },
+
+
+  invalidateEnhanceCache() {
+
+    enhanceCache = { key: null, canvas: null };
+
+  },
+
+
+  refreshEditor(index) {
+
+    // Only redraw when the edited page is the one on screen.
+    if (
+      state.currentPage === index &&
+      screens.editor.classList.contains("active")
+    ) {
+
+      renderEditor();
+
+    }
+
+  },
+
+
+  goBackFromPages() {
+
+    // Return to wherever the manager makes sense to leave: the editor
+    // if pages exist, otherwise home.
+    if (state.pages.length) {
+
+      openEditor(
+        Math.min(
+          state.currentPage,
+          state.pages.length - 1
+        )
+      );
+
+    } else {
+
+      goHome();
+
+    }
+
+  }
+
+};
 
 
 

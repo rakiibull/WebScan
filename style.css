@@ -2147,3 +2147,229 @@ input {
     transition-duration: .01ms !important;
   }
 }
+
+
+/* =====================================================
+   PAGE MANAGER
+===================================================== */
+
+.pages-manager {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+}
+
+.pages-hint {
+  margin: 4px 2px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 12px;
+}
+
+/* While dragging, the grid must not scroll under the finger. */
+.pages-grid-dragging {
+  touch-action: none;
+}
+
+.page-card {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  /* Vertical panning stays available until a drag actually starts. */
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.page-card-thumb {
+  aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #0b0f16;
+}
+
+.page-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .18s ease;
+}
+
+/* A quarter-turned page is scaled to keep filling the tile. */
+.page-card-thumb img.page-card-rotated {
+  width: 133%;
+  height: 133%;
+  object-fit: contain;
+}
+
+.page-card-number {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: rgba(6,10,16,.82);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.page-card-menu {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(6,10,16,.82);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* The lifted card follows the pointer in viewport coordinates. */
+.page-card-dragging {
+  position: fixed;
+  z-index: 90;
+  margin: 0;
+  pointer-events: none;
+  box-shadow: 0 18px 40px rgba(0,0,0,.5);
+  transform: scale(1.04);
+  opacity: .96;
+}
+
+.pages-empty {
+  padding: 48px 20px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.pages-empty strong {
+  color: var(--text);
+}
+
+.pages-actions {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px calc(14px + var(--safe-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.pages-add-btn,
+.pages-done-btn {
+  flex: 1;
+  height: 46px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pages-add-btn {
+  background: var(--surface-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.pages-done-btn {
+  background: var(--accent);
+  color: #04231c;
+}
+
+.editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pages-link-btn {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+
+/* =====================================================
+   PAGE ACTION SHEET
+===================================================== */
+
+.page-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: none;
+  align-items: flex-end;
+  background: rgba(0,0,0,.55);
+}
+
+.page-sheet.show {
+  display: flex;
+}
+
+.page-sheet-panel {
+  width: 100%;
+  padding: 14px 14px calc(14px + var(--safe-bottom));
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.page-sheet-title {
+  padding: 6px 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.page-sheet-item,
+.page-sheet-cancel {
+  width: 100%;
+  height: 48px;
+  margin-bottom: 6px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  padding: 0 16px;
+}
+
+.page-sheet-item:disabled {
+  opacity: .38;
+}
+
+.page-sheet-item.danger {
+  color: var(--danger);
+}
+
+.page-sheet-cancel {
+  margin-top: 6px;
+  margin-bottom: 0;
+  text-align: center;
+  background: var(--surface-3);
+  font-weight: 700;
+}

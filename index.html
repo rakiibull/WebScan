@@ -421,12 +421,23 @@
         </span>
       </div>
 
-      <button
-        id="editorDoneBtn"
-        class="done-text-btn"
-      >
-        Done
-      </button>
+      <div class="editor-header-actions">
+
+        <button
+          id="editorPagesBtn"
+          class="pages-link-btn"
+        >
+          Pages
+        </button>
+
+        <button
+          id="editorDoneBtn"
+          class="done-text-btn"
+        >
+          Done
+        </button>
+
+      </div>
 
     </header>
 
@@ -828,6 +839,74 @@
 
 
   <!-- =========================
+       PAGE MANAGER
+  ========================== -->
+
+  <section id="pagesScreen" class="screen">
+
+    <header class="list-header">
+
+      <div>
+        <strong>Pages</strong>
+        <span id="pagesSubtitle">0 pages</span>
+      </div>
+
+      <button
+        id="pagesBackBtn"
+        class="circle-btn"
+      >
+        ‹
+      </button>
+
+    </header>
+
+
+    <main class="pages-manager">
+
+      <p class="pages-hint">
+        Drag a page to reorder. Tap to edit.
+      </p>
+
+      <div
+        id="pagesGrid"
+        class="pages-grid"
+      ></div>
+
+      <div
+        id="pagesEmpty"
+        class="pages-empty hidden"
+      >
+        <div class="empty-icon">📄</div>
+        <strong>No pages yet</strong>
+        <span>Scan or import a page to get started.</span>
+      </div>
+
+    </main>
+
+
+    <div class="pages-actions">
+
+      <button
+        id="pagesAddBtn"
+        class="pages-add-btn"
+      >
+        + Add page
+      </button>
+
+      <button
+        id="pagesDoneBtn"
+        class="pages-done-btn"
+      >
+        Done
+      </button>
+
+    </div>
+
+  </section>
+
+
+
+  <!-- =========================
        SETTINGS
   ========================== -->
 
@@ -984,6 +1063,17 @@
     hidden
   >
 
+
+  <!-- Separate input for replacing a single page, so it never
+       interferes with the multi-select import flow above. -->
+
+  <input
+    id="replacePageInput"
+    type="file"
+    accept="image/*"
+    hidden
+  >
+
 </div>
 
 
@@ -1013,6 +1103,9 @@
 
     <!-- Manual corner adjustment / crop editor -->
     <script src="crop-editor.js"></script>
+
+    <!-- Multi-page session manager -->
+    <script src="page-manager.js"></script>
 
 </body>
 </html>
