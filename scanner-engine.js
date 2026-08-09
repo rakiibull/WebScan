@@ -909,6 +909,133 @@
     }
   }
 
+  /*
+    Nudges each corner from its integer approxPolyDP position onto the
+    true local gradient. Without this the outline is only as precise as
+    the (downscaled) contour simplification, which visibly misses the
+    real page edge by a few pixels — exactly what reads as "corners not
+    quite on the document".
+
+    OpenCV.js does not expose cv.cornerSubPix (it is compiled into the
+    WASM binary but never registered with embind, so calling it throws
+    "not a function"), so this reimplements the same classic algorithm
+    directly against the gray Mat's pixel buffer: iteratively move to
+    the point, within a small window, where the image gradient is most
+    orthogonal to the vector back to the current estimate — the
+    textbook sub-pixel corner criterion.
+  */
+  function refineCorners(gray, points) {
+    const width = gray.cols;
+    const height = gray.rows;
+    const data = gray.data; // single-channel 8-bit, row-major
+
+    /*
+      Bilinear sample rather than nearest-pixel rounding. The iteration
+      below moves the estimate by sub-pixel amounts each step; sampling
+      via Math.round() makes the gradient field jump discontinuously as
+      that estimate crosses pixel boundaries, which was measured to
+      oscillate between two positions forever instead of converging.
+      Bilinear sampling keeps the gradient continuous, so the solver
+      actually settles.
+    */
+    const sampleBilinear = (x, y) => {
+      const x0 = Math.floor(x);
+      const y0 = Math.floor(y);
+      const cx0 = Math.min(Math.max(x0, 0), width - 1);
+      const cy0 = Math.min(Math.max(y0, 0), height - 1);
+      const x1 = Math.min(x0 + 1, width - 1);
+      const y1 = Math.min(y0 + 1, height - 1);
+
+      const fx = x - x0;
+      const fy = y - y0;
+
+      const v00 = data[cy0 * width + cx0];
+      const v10 = data[cy0 * width + x1];
+      const v01 = data[y1 * width + cx0];
+      const v11 = data[y1 * width + x1];
+
+      return v00 * (1 - fx) * (1 - fy) + v10 * fx * (1 - fy) +
+        v01 * (1 - fx) * fy + v11 * fx * fy;
+    };
+
+    const gradientAt = (x, y) => ({
+      gx: (sampleBilinear(x + 1, y) - sampleBilinear(x - 1, y)) / 2,
+      gy: (sampleBilinear(x, y + 1) - sampleBilinear(x, y - 1)) / 2
+    });
+
+    const half = 4;
+
+    const refineOne = (point) => {
+      // Nothing reliable to lock onto once the window would read
+      // outside the image, so the corner is left exactly as detected.
+      if (
+        point.x < half || point.x > width - 1 - half ||
+        point.y < half || point.y > height - 1 - half
+      ) {
+        return point;
+      }
+
+      let cx = point.x;
+      let cy = point.y;
+
+      for (let iter = 0; iter < 10; iter++) {
+        let sumGxGx = 0, sumGxGy = 0, sumGyGy = 0;
+        let sumGxB = 0, sumGyB = 0;
+
+        for (let dy = -half; dy <= half; dy++) {
+          for (let dx = -half; dx <= half; dx++) {
+            if (dx === 0 && dy === 0) continue;
+
+            const px = cx + dx;
+            const py = cy + dy;
+            const { gx, gy } = gradientAt(px, py);
+
+            if (!gx && !gy) continue;
+
+            // Weights the pixel's influence by its own gradient strength
+            // (a flat area carries no corner information) and normal
+            // distance, matching the reference algorithm's least-squares
+            // system: sum( (g . d) g ) = sum( (g . d) g . p ).
+            sumGxGx += gx * gx;
+            sumGxGy += gx * gy;
+            sumGyGy += gy * gy;
+            sumGxB += gx * gx * px + gx * gy * py;
+            sumGyB += gx * gy * px + gy * gy * py;
+          }
+        }
+
+        const det = sumGxGx * sumGyGy - sumGxGy * sumGxGy;
+
+        // A near-singular system means the window has no consistent
+        // corner (e.g. a flat or purely one-directional edge) — stop
+        // rather than divide by ~0 and fly off to a meaningless point.
+        if (Math.abs(det) < 1e-6) break;
+
+        const nx = (sumGyGy * sumGxB - sumGxGy * sumGyB) / det;
+        const ny = (sumGxGx * sumGyB - sumGxGy * sumGxB) / det;
+
+        const shift = Math.hypot(nx - cx, ny - cy);
+
+        cx = nx;
+        cy = ny;
+
+        if (shift < 0.01) break;
+      }
+
+      // A refinement more than a few pixels from the original estimate
+      // means the iteration diverged rather than converged onto the
+      // true corner, so the original is safer to keep.
+      if (!Number.isFinite(cx) || !Number.isFinite(cy) ||
+          Math.hypot(cx - point.x, cy - point.y) > 6) {
+        return point;
+      }
+
+      return { x: cx, y: cy };
+    };
+
+    return points.map(refineOne);
+  }
+
   function findDocumentCorners(canvas) {
     if (!cvIsReady()) return null;
 
@@ -1027,11 +1154,17 @@
 
       if (!best) return null;
 
+      // approxPolyDP only ever lands on whole pixels of the (already
+      // downscaled) detection frame, which is coarser than the true
+      // page edge. Snapping each corner to the nearest real gradient
+      // corrects that before the result leaves detection space.
+      const refined = refineCorners(gray, best);
+
       // Map back to the caller's canvas resolution.
       const scaleX = canvas.width / src.cols;
       const scaleY = canvas.height / src.rows;
 
-      return best.map(p => ({
+      return refined.map(p => ({
         x: p.x * scaleX,
         y: p.y * scaleY
       }));
