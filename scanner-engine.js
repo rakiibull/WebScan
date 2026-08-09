@@ -625,11 +625,17 @@
 
   cameraScreen.appendChild(pagesChip);
 
+  const bottomActions = cameraScreen.querySelector(".camera-bottom-actions");
+
   function syncPagesChip() {
     const count = window.webscanState?.pages?.length || 0;
 
     pagesChip.hidden = count === 0;
     pagesChip.querySelector(".ws-pages-count").textContent = String(count);
+
+    // Nothing to finish until at least one page exists, so the button
+    // stays out of the way on a fresh scan.
+    if (bottomActions) bottomActions.hidden = count === 0;
   }
 
   window.addEventListener("webscan-pages-changed", syncPagesChip);
@@ -647,25 +653,7 @@
   `;
   cameraScreen.appendChild(modeBar);
 
-  const header = cameraScreen.querySelector(".camera-header");
-  const existingSettings = $("cameraSettingsBtn");
-
-  const topActions = document.createElement("div");
-  topActions.className = "ws-camera-top-actions";
-  topActions.innerHTML = `
-    <button type="button" class="ws-camera-top-btn" id="wsFlashTop" aria-label="Flash">⚡</button>
-    <button
-      type="button"
-      class="ws-camera-top-btn ws-auto-btn"
-      id="wsAutoTop"
-      aria-label="Auto capture"
-      aria-pressed="false"
-    >AUTO</button>
-    <button type="button" class="ws-camera-top-btn" id="wsHdTop" aria-label="HD">HD</button>
-    <button type="button" class="ws-camera-top-btn" id="wsMoreTop" aria-label="More">•••</button>
-  `;
-
-  if (header) header.appendChild(topActions);
+  const settingsBtn = $("cameraSettingsBtn");
 
   const sheet = document.createElement("div");
   sheet.className = "ws-mode-sheet";
@@ -676,8 +664,17 @@
       <button class="ws-mode-option" data-opt="manual">Full image</button>
       <button class="ws-mode-option" data-opt="reset">Reset frame</button>
     </div>
+    <div class="ws-mode-sheet-title">Capture</div>
+    <div class="ws-mode-grid">
+      <button class="ws-mode-option" id="wsAutoTop" aria-pressed="false" data-opt="autocapture">Auto capture</button>
+      <button class="ws-mode-option" id="wsHdTop" data-opt="hd">HD quality</button>
+    </div>
   `;
   cameraScreen.appendChild(sheet);
+
+  settingsBtn?.addEventListener("click", () => {
+    sheet.classList.toggle("show");
+  });
 
   function setStatus(text, type = "") {
     status.className = "ws-live-status " + type;
@@ -1672,37 +1669,17 @@
     );
   });
 
-  const topFlash = $("wsFlashTop");
   const topHd = $("wsHdTop");
-  const topMore = $("wsMoreTop");
-
-  topFlash?.addEventListener("click", async () => {
-    const track = video.srcObject?.getVideoTracks?.()[0];
-    const caps = track?.getCapabilities?.();
-
-    if (caps?.torch) {
-      try {
-        const current = track.getSettings?.().torch || false;
-        await track.applyConstraints({ advanced: [{ torch: !current }] });
-        topFlash.classList.toggle("ws-active", !current);
-        setStatus(!current ? "Flash on" : "Flash off", "ready");
-        return;
-      } catch (_) {}
-    }
-
-    setStatus("Flash is not supported by this camera", "error");
-  });
-
   const topAuto = $("wsAutoTop");
 
   /*
-    Reflects the shared auto-capture preference on the camera button.
+    Reflects the shared auto-capture preference on the sheet toggle.
     script.js owns the setting, so both this control and the Settings
     screen toggle always show the same value.
   */
   function syncAutoButton() {
     const on = !!window.webscanAutoCapture;
-    topAuto?.classList.toggle("ws-active", on);
+    topAuto?.classList.toggle("active", on);
     topAuto?.setAttribute("aria-pressed", String(on));
   }
 
@@ -1730,18 +1707,17 @@
   syncAutoButton();
 
   topHd?.addEventListener("click", () => {
-    topHd.classList.toggle("ws-active");
-    const enabled = topHd.classList.contains("ws-active");
+    topHd.classList.toggle("active");
+    const enabled = topHd.classList.contains("active");
     setStatus(enabled ? "HD mode" : "Standard quality", "ready");
   });
 
-  topMore?.addEventListener("click", () => {
-    sheet.classList.toggle("show");
-  });
-
+  // Auto capture / HD are persistent toggles with their own handlers above,
+  // so they're excluded here to avoid double-handling and an unwanted
+  // sheet close on every toggle.
   sheet.addEventListener("click", (event) => {
     const option = event.target.closest?.(".ws-mode-option");
-    if (!option) return;
+    if (!option || option === topAuto || option === topHd) return;
 
     const value = option.dataset.opt;
 
@@ -1762,6 +1738,7 @@
     }
 
     sheet.querySelectorAll(".ws-mode-option").forEach(el => {
+      if (el === topAuto || el === topHd) return;
       el.classList.toggle("active", el === option);
     });
 

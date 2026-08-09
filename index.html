@@ -358,7 +358,7 @@
       </button>
 
       <div class="camera-title">
-        <strong>Scanner</strong>
+        <strong>Scan</strong>
         <span id="scanPageLabel">Page 1</span>
       </div>
 
@@ -408,7 +408,12 @@
         </div>
 
         <div class="scan-hint">
-          Place the document inside the frame
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 3.6h7.2L18 7.4V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.6a1 1 0 0 1 1-1Z"
+              stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/>
+            <path d="M14.2 3.6V7a1 1 0 0 0 1 1h2.8" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/>
+          </svg>
+          <span>Place the document inside the frame</span>
         </div>
 
       </div>
@@ -483,6 +488,7 @@
       <button
         id="flashBtn"
         class="tool-btn"
+        aria-label="Toggle flash"
       >
         <span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -491,22 +497,6 @@
               stroke-linejoin="round"/>
           </svg>
         </span>
-        <small>Flash</small>
-      </button>
-
-      <button
-        id="zoomOutBtn"
-        class="tool-btn"
-      >
-        <span>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="11" cy="11" r="6.4"
-              stroke="currentColor" stroke-width="1.9" fill="none"/>
-            <path d="M8.4 11h5.2M15.8 15.8 20.5 20.5"
-              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <small>Zoom out</small>
       </button>
 
 
@@ -520,24 +510,9 @@
 
 
       <button
-        id="zoomInBtn"
-        class="tool-btn"
-      >
-        <span>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="11" cy="11" r="6.4"
-              stroke="currentColor" stroke-width="1.9" fill="none"/>
-            <path d="M8.4 11h5.2M11 8.4v5.2M15.8 15.8 20.5 20.5"
-              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <small>Zoom in</small>
-      </button>
-
-
-      <button
         id="switchCameraBtn"
         class="tool-btn"
+        aria-label="Switch camera"
       >
         <span>
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -552,7 +527,38 @@
               stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </span>
-        <small>Flip</small>
+      </button>
+
+      <button
+        id="zoomOutBtn"
+        class="tool-btn"
+        hidden
+      >
+        <span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.4"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+            <path d="M8.4 11h5.2M15.8 15.8 20.5 20.5"
+              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <small>Zoom out</small>
+      </button>
+
+      <button
+        id="zoomInBtn"
+        class="tool-btn"
+        hidden
+      >
+        <span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.4"
+              stroke="currentColor" stroke-width="1.9" fill="none"/>
+            <path d="M8.4 11h5.2M11 8.4v5.2M15.8 15.8 20.5 20.5"
+              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <small>Zoom in</small>
       </button>
 
     </div>

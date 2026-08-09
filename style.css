@@ -1212,6 +1212,10 @@ svg {
     transform var(--fast) var(--ease);
 }
 
+.tool-btn[hidden] {
+  display: none;
+}
+
 .tool-btn:active {
   transform: scale(0.9);
   color: #fff;
@@ -1375,6 +1379,10 @@ svg {
            calc(var(--safe-left) + 16px);
 
   background: #000;
+}
+
+.camera-bottom-actions[hidden] {
+  display: none;
 }
 
 .finish-btn {
