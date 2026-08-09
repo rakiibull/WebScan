@@ -344,6 +344,41 @@ function isPortraitViewport() {
 }
 
 
+/*
+  Forces the active video track back to its minimum (1x) hardware
+  zoom, if the browser exposes zoom as a track capability.
+
+  This runs every time the camera (re)starts, since some devices
+  otherwise open on a telephoto lens or a remembered zoom level
+  instead of the plain wide-angle view.
+*/
+function resetTrackZoom() {
+
+  const track =
+    state.stream
+      ?.getVideoTracks?.()[0];
+
+  const capabilities =
+    track?.getCapabilities
+      ? track.getCapabilities()
+      : {};
+
+  if (!capabilities.zoom) {
+    return;
+  }
+
+  track.applyConstraints({
+    advanced: [
+      {
+        zoom: capabilities.zoom.min ?? 1
+      }
+    ]
+  })
+  .catch(() => {});
+
+}
+
+
 async function startCamera() {
 
   stopCamera();
@@ -411,6 +446,17 @@ async function startCamera() {
           ideal: portrait
             ? shortEdge / longEdge
             : longEdge / shortEdge
+        },
+
+        /*
+          Some phones (notably multi-lens Android devices) default the
+          "environment" camera to a 2x telephoto lens instead of the
+          main wide lens, which reads as an unwanted zoom the moment
+          the camera opens. Asking for 1x here corrects that on
+          browsers that expose zoom as a constraint up front.
+        */
+        zoom: {
+          ideal: 1
         }
       }
 
@@ -425,6 +471,15 @@ async function startCamera() {
     video.srcObject = state.stream;
 
     await video.play();
+
+
+    /*
+      Constraints alone don't always take on every device, so the
+      zoom is also reset directly on the track once it's live. This
+      is the same mechanism the zoom +/- buttons use, kept at its
+      minimum (1x) rather than whatever the hardware started at.
+    */
+    resetTrackZoom();
 
 
     $("cameraLoading")
@@ -500,6 +555,14 @@ function stopCamera() {
   }
 
   video.srcObject = null;
+
+
+  // A leftover digital zoom from a previous session should not carry
+  // over into the next one, which would otherwise look identical to
+  // the camera opening pre-zoomed.
+  state.zoom = 1;
+
+  video.style.transform = "";
 
 }
 

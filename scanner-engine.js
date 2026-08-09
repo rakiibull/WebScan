@@ -66,7 +66,15 @@
 
   // Temporal smoothing state. Detection runs per frame and is noisy, so
   // results are filtered over time before anything reaches the screen.
+  //
+  // `smoothedCorners` is the latest filtered *target* the outline should
+  // move toward; `displayedCorners` is what is actually on screen right
+  // now. A rAF loop eases the latter toward the former every frame, so
+  // the outline glides continuously instead of jumping once per
+  // detection tick (which only runs every 250-1200ms).
   let smoothedCorners = null;
+  let displayedCorners = null;
+  let renderLoopId = null;
   let missStreak = 0;
 
   // Latest quality reading and whether every capture condition is met.
@@ -215,8 +223,11 @@
     };
   }
 
-  // Weight of each new measurement. Lower is steadier but slower.
-  const SMOOTHING = 0.35;
+  // Weight of each new measurement when updating the smoothing *target*.
+  // Lower is steadier but slower to follow real movement. This blends
+  // one detection result into the next; the per-frame glide toward that
+  // target is a separate, faster rate (see RENDER_EASE below).
+  const SMOOTHING = 0.45;
 
   // Frames a document may go undetected before the overlay is cleared.
   // Prevents flicker when one frame fails during small hand movements.
@@ -225,6 +236,18 @@
   // Fraction of the frame width a corner may jump between updates before
   // the tracker treats it as a different document and snaps to it.
   const SNAP_DISTANCE_RATIO = 0.25;
+
+  // How quickly the on-screen outline eases toward the latest smoothing
+  // target, applied once per rendered frame (not per detection). Higher
+  // than SMOOTHING because this runs at display frame rate rather than
+  // the much slower detection cadence, so each individual step is tiny.
+  const RENDER_EASE = 0.28;
+
+  // Below this distance (as a fraction of frame width, same convention
+  // as SNAP_DISTANCE_RATIO/STABLE_TOLERANCE_RATIO) the outline is
+  // snapped exactly onto the target instead of continuing to ease,
+  // so it settles cleanly rather than creeping forever.
+  const RENDER_SETTLE_RATIO = 0.0025;
 
   /* =========================================================
      FRAME QUALITY ANALYSIS
@@ -1052,12 +1075,7 @@
     };
   }
 
-  function showCorners(corners) {
-    if (!corners) {
-      hideCorners();
-      return;
-    }
-
+  function paintCorners(corners) {
     const mapped = corners.map(videoPointToOverlayPercent);
 
     if (mapped.some(p => p === null)) {
@@ -1088,6 +1106,64 @@
 
     const frame = cameraScreen.querySelector(".scan-frame");
     frame?.classList.add("ws-detected");
+  }
+
+  /*
+    Eases `displayedCorners` toward `smoothedCorners` a little every
+    frame and paints the result, instead of jumping straight to each
+    new detection. Detection only runs every 250-1200ms; without this
+    loop the outline would sit still for that whole gap and then hop,
+    which is what reads as jerky movement.
+  */
+  function renderTick() {
+    renderLoopId = null;
+
+    if (!smoothedCorners) {
+      if (displayedCorners) {
+        displayedCorners = null;
+        hideCorners();
+      }
+      return;
+    }
+
+    if (!displayedCorners) {
+      displayedCorners = smoothedCorners;
+    } else {
+      const frameWidth = video.videoWidth || 1;
+      const settleDistance = RENDER_SETTLE_RATIO * frameWidth;
+
+      let moving = false;
+
+      displayedCorners = displayedCorners.map((prev, i) => {
+        const target = smoothedCorners[i];
+        const dx = target.x - prev.x;
+        const dy = target.y - prev.y;
+
+        if (Math.hypot(dx, dy) <= settleDistance) {
+          return target;
+        }
+
+        moving = true;
+        return {
+          x: prev.x + dx * RENDER_EASE,
+          y: prev.y + dy * RENDER_EASE
+        };
+      });
+
+      if (!moving) {
+        displayedCorners = smoothedCorners;
+      }
+    }
+
+    paintCorners(displayedCorners);
+
+    renderLoopId = requestAnimationFrame(renderTick);
+  }
+
+  function ensureRenderLoop() {
+    if (renderLoopId === null) {
+      renderLoopId = requestAnimationFrame(renderTick);
+    }
   }
 
   function hideCorners() {
@@ -1195,8 +1271,13 @@
         y: source.y + p.y * sy
       }));
 
-      showCorners(smoothCorners(inVideoSpace));
-      trackStability(inVideoSpace);
+      smoothCorners(inVideoSpace);
+      ensureRenderLoop();
+
+      // Stability is measured against the same filtered target the
+      // outline is drawn toward, so "hold steady" and what is on
+      // screen never disagree.
+      trackStability(smoothedCorners);
 
       lastQuality = quality;
 
@@ -1231,6 +1312,7 @@
       if (missStreak > MAX_MISSES) {
         hideCorners();
         smoothedCorners = null;
+        displayedCorners = null;
         stableSince = null;
         captureReady = false;
         lastQuality = null;
@@ -1353,9 +1435,15 @@
 
   function resetTracking() {
     smoothedCorners = null;
+    displayedCorners = null;
     stabilityReference = null;
     stableSince = null;
     missStreak = 0;
+
+    if (renderLoopId !== null) {
+      cancelAnimationFrame(renderLoopId);
+      renderLoopId = null;
+    }
 
     // A frame may still be in flight; its result must not be applied to
     // the next session, and `detecting` must not stay stuck true.

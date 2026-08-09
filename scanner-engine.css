@@ -243,7 +243,13 @@
   /* Centres the marker on the detected point. No extra margin offset,
      which would otherwise shift every corner by half its own size. */
   transform: translate(-50%, -50%);
-  transition: left .12s linear, top .12s linear;
+
+  /*
+    No position transition here: the engine's render loop already
+    eases `left`/`top` toward each new detection every animation
+    frame, so a CSS transition on top of that would fight the JS
+    values mid-flight instead of helping.
+  */
 }
 
 .ws-live-status {
