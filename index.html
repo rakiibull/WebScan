@@ -688,6 +688,50 @@
       </div>
 
 
+      <!-- AUTO-CROP FALLBACK NOTICE
+           Shown only for the page that was just captured when
+           auto-detection could not confidently crop it, so the
+           original is never silently handed back with no way for
+           the user to notice. -->
+
+      <div
+        id="autoCropNotice"
+        class="editor-notice hidden"
+      >
+        <svg class="editor-notice-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 8.4v4.4"
+            stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+          <circle cx="12" cy="16.4" r="1.25" fill="currentColor"/>
+          <circle cx="12" cy="12" r="8.6"
+            stroke="currentColor" stroke-width="1.9" fill="none"/>
+        </svg>
+
+        <span class="editor-notice-text">
+          Couldn't auto-detect the document edges.
+        </span>
+
+        <button
+          id="autoCropNoticeBtn"
+          type="button"
+          class="editor-notice-action"
+        >
+          Adjust corners
+        </button>
+
+        <button
+          id="autoCropNoticeDismiss"
+          type="button"
+          class="editor-notice-dismiss"
+          aria-label="Dismiss"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6.6 6.6 10.8 10.8M17.4 6.6 6.6 17.4"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+
+
       <!-- FILTERS -->
 
       <div class="editor-section">
@@ -709,21 +753,7 @@
             class="filter-btn"
             data-filter="auto"
           >
-            Auto
-          </button>
-
-          <button
-            class="filter-btn"
-            data-filter="magic"
-          >
-            Magic
-          </button>
-
-          <button
-            class="filter-btn"
-            data-filter="bw"
-          >
-            B&amp;W
+            Auto Scan
           </button>
 
           <button
@@ -735,9 +765,16 @@
 
           <button
             class="filter-btn"
-            data-filter="document"
+            data-filter="bw"
           >
-            Document
+            B&amp;W
+          </button>
+
+          <button
+            class="filter-btn"
+            data-filter="magic"
+          >
+            Color
           </button>
 
         </div>

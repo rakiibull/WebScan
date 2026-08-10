@@ -24,6 +24,11 @@ const state = {
 
   currentPage: 0,
 
+  // id of the just-captured page auto-crop couldn't confidently handle,
+  // so the editor's fallback notice knows which page (if any) to show
+  // itself for. Cleared once addressed; never persisted with the page.
+  autoCropFailedPageId: null,
+
   documents: [],
 
   editing: false,
@@ -794,15 +799,22 @@ async function handleFiles(files) {
 
       // Corners detected at capture time pre-fill the manual crop
       // handles. Null for gallery imports and already-cropped scans.
-      state.pages.push(
+      const page =
         createPage(
           data,
           window.webscanLastCorners || null
-        )
-      );
+        );
+
+      state.pages.push(page);
+
+
+      if (window.webscanAutoCropFailed) {
+        state.autoCropFailedPageId = page.id;
+      }
 
 
       window.webscanLastCorners = null;
+      window.webscanAutoCropFailed = false;
 
     } catch (error) {
 
@@ -1101,8 +1113,29 @@ function openEditor(index = 0) {
 
   updateHistoryButtons();
 
+  syncAutoCropNotice(page);
+
 
   renderEditor();
+
+}
+
+
+/*
+  Shows the "couldn't auto-detect edges" notice only for the specific
+  page that was just captured with a failed auto-crop — not for every
+  page that happens to lack corners (gallery imports, already-cropped
+  scans), and not once the user has addressed or dismissed it.
+*/
+function syncAutoCropNotice(page) {
+
+  const show =
+    !!page &&
+    page.id === state.autoCropFailedPageId;
+
+  $("autoCropNotice")
+    .classList
+    .toggle("hidden", !show);
 
 }
 
@@ -1531,6 +1564,83 @@ function applyFilter(filter) {
 
   // Each filter choice is one discrete undo step.
   commitEditorHistory();
+
+}
+
+
+/*
+  Opens the manual 4-corner crop editor for the current page. Shared by
+  the toolbar Crop button and the auto-crop-failed notice's action, so
+  both paths apply and clean up identically.
+*/
+function openManualCrop() {
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  if (!page || !window.WebScanCrop) {
+
+    showToast(
+      window.WebScanMessages?.NOTICE?.cropUnavailable || "Manual crop is unavailable right now.",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  window.WebScanCrop.open({
+
+    dataUrl: page.src,
+
+    // Corners saved at capture time seed the handles, so manual
+    // adjustment starts from the automatic result instead of a
+    // generic rectangle.
+    initialCorners: page.corners,
+
+    onApply: (canvas) => {
+
+      // Only `src` changes; `originalSrc` is left untouched so the
+      // untouched capture survives and Reset/undo can restore it.
+      page.src =
+        canvas.toDataURL(
+          "image/jpeg",
+          0.95
+        );
+
+
+      // The image is now physically cropped, so stored corners no
+      // longer describe it and must not be reused.
+      page.corners = null;
+
+
+      // The page id is unchanged but its pixels are not, so the
+      // cached enhancement must be dropped or a stale image shows.
+      enhanceCache = { key: null, canvas: null };
+
+
+      // The crop this notice was nudging toward has now happened.
+      if (state.autoCropFailedPageId === page.id) {
+        state.autoCropFailedPageId = null;
+      }
+
+      syncAutoCropNotice(page);
+
+
+      window.WebScanHistory?.commit(page);
+
+
+      renderEditor();
+
+      updatePages();
+
+      showToast("Crop applied");
+
+    }
+
+  });
 
 }
 
@@ -4501,66 +4611,27 @@ $("editorPagesBtn")
 $("cropBtn")
   .addEventListener(
     "click",
+    openManualCrop
+  );
+
+
+$("autoCropNoticeBtn")
+  .addEventListener(
+    "click",
+    openManualCrop
+  );
+
+
+$("autoCropNoticeDismiss")
+  .addEventListener(
+    "click",
     () => {
 
-      const page =
-        state.pages[state.currentPage];
+      state.autoCropFailedPageId = null;
 
-
-      if (!page || !window.WebScanCrop) {
-
-        showToast(
-          window.WebScanMessages?.NOTICE?.cropUnavailable || "Manual crop is unavailable right now.",
-          "!"
-        );
-
-        return;
-
-      }
-
-
-      window.WebScanCrop.open({
-
-        dataUrl: page.src,
-
-        // Corners saved at capture time seed the handles, so manual
-        // adjustment starts from the automatic result instead of a
-        // generic rectangle.
-        initialCorners: page.corners,
-
-        onApply: (canvas) => {
-
-          // Only `src` changes; `originalSrc` is left untouched so the
-          // untouched capture survives and Reset/undo can restore it.
-          page.src =
-            canvas.toDataURL(
-              "image/jpeg",
-              0.95
-            );
-
-
-          // The image is now physically cropped, so stored corners no
-          // longer describe it and must not be reused.
-          page.corners = null;
-
-
-          // The page id is unchanged but its pixels are not, so the
-          // cached enhancement must be dropped or a stale image shows.
-          enhanceCache = { key: null, canvas: null };
-
-
-          window.WebScanHistory?.commit(page);
-
-
-          renderEditor();
-
-          updatePages();
-
-          showToast("Crop applied");
-
-        }
-
-      });
+      syncAutoCropNotice(
+        state.pages[state.currentPage]
+      );
 
     }
   );

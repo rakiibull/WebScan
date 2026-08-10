@@ -1615,9 +1615,14 @@
     return c;
   }
 
+  /*
+    Returns null (rather than the untouched source) whenever it can't
+    actually warp, so the caller can tell "cropped" apart from "fell
+    back to the original" instead of assuming success either way.
+  */
   function warpPerspective(sourceCanvas, corners) {
     if (!cvIsReady() || !corners || corners.length !== 4) {
-      return sourceCanvas;
+      return null;
     }
 
     let src = null, dst = null, srcTri = null, dstTri = null, M = null;
@@ -1687,7 +1692,7 @@
       return out;
     } catch (error) {
       console.warn("Perspective correction failed:", error);
-      return sourceCanvas;
+      return null;
     } finally {
       [src, dst, srcTri, dstTri, M].forEach(obj => {
         try { obj?.delete(); } catch (_) {}
@@ -1782,8 +1787,17 @@
         if (fresh) corners = fresh;
       }
 
-      const cropped = autoCrop && corners;
-      const result = cropped ? warpPerspective(raw, corners) : raw;
+      const warped = (autoCrop && corners)
+        ? warpPerspective(raw, corners)
+        : null;
+
+      const result = warped || raw;
+
+      // True whenever auto-crop was wanted but didn't happen, for any
+      // reason (no corners detected, or the warp itself failed) — the
+      // editor uses this to prompt the user toward manual adjustment
+      // instead of silently handing back an uncropped photo.
+      const autoCropFailed = autoCrop && !warped;
 
       setProgress(
         "Scanning document",
@@ -1795,12 +1809,13 @@
         corners, so they are handed to the editor to pre-fill the manual
         adjustment handles. After warping they no longer apply.
       */
-      window.webscanLastCorners = cropped ? null : corners;
+      window.webscanLastCorners = warped ? null : corners;
+      window.webscanAutoCropFailed = autoCropFailed;
 
       await addProcessedImageToExistingApp(result);
 
       setStatus(
-        autoCrop && corners
+        warped
           ? "Document corrected"
           : "Scan captured",
         "ready"
