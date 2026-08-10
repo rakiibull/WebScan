@@ -17,17 +17,34 @@ let cvReady = false;
 
 /*
   OpenCV is loaded inside the worker. importScripts is synchronous, so
-  the runtime is initialised before any frame is accepted.
-*/
-self.Module = {
-  onRuntimeInitialized() {
-    cvReady = true;
-    self.postMessage({ type: "ready" });
-  }
-};
+  the script itself finishes before any frame is accepted -- but the
+  WASM runtime inside it initialises asynchronously, which is what
+  onRuntimeInitialized below actually waits for.
 
+  Served from jsdelivr rather than docs.opencv.org for the same reason
+  as index.html's copy: that URL is OpenCV's documentation site, not a
+  CDN, and 301-redirects to a versioned path with no long-lived cache
+  headers -- slow and occasionally stalling outright on mobile
+  networks. jsdelivr serves the identical official build, pinned to a
+  fixed version, from an edge CDN.
+
+  This UMD build assigns straight to `cv` in a worker context, not
+  `Module`, so readiness is read off `cv.onRuntimeInitialized` after
+  the import returns rather than a Module pre-declaration.
+*/
 try {
-  self.importScripts("https://docs.opencv.org/4.x/opencv.js");
+  self.importScripts(
+    "https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js"
+  );
+
+  if (self.cv) {
+    self.cv["onRuntimeInitialized"] = () => {
+      cvReady = true;
+      self.postMessage({ type: "ready" });
+    };
+  } else {
+    self.postMessage({ type: "failed", message: "opencv.js loaded but did not define cv" });
+  }
 } catch (error) {
   self.postMessage({
     type: "failed",

@@ -1851,21 +1851,60 @@
 
 <script src="script.js"></script>
 
-    <!-- OpenCV for automatic document detection.
-         Module is declared before the script loads so that
-         onRuntimeInitialized fires reliably instead of relying on polling. -->
-    <script>
-      var Module = {
-        onRuntimeInitialized: function () {
-          window.dispatchEvent(new Event("webscan-opencv-ready"));
-        }
-      };
-    </script>
+    <!--
+      OpenCV for automatic document detection.
+
+      Served from jsdelivr rather than docs.opencv.org: that URL is
+      OpenCV's documentation site, not a CDN -- it 301-redirects to a
+      versioned path and has no far-future cache headers, which made
+      every fresh load noticeably slower (and occasionally stall
+      outright) on mobile networks. jsdelivr serves the same official
+      build byte-for-byte, pinned to a fixed version so it can't shift
+      under us, from an edge CDN with long-lived caching.
+
+      This UMD build assigns straight to `cv`, not `Module`, so
+      readiness is read off `cv.onRuntimeInitialized` after load
+      instead of the Module pre-declaration the docs.opencv.org build
+      wanted. A timeout still fires webscan-opencv-failed if the
+      runtime never comes up, so a slow or blocked connection ends in
+      a visible message instead of detection waiting forever.
+    -->
     <script
-      async
-      src="https://docs.opencv.org/4.x/opencv.js"
+      src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js"
       onerror="window.dispatchEvent(new Event('webscan-opencv-failed'))"
     ></script>
+    <script>
+      (function () {
+        var settled = false;
+
+        function ready() {
+          if (settled) return;
+          settled = true;
+          window.dispatchEvent(new Event("webscan-opencv-ready"));
+        }
+
+        function failed() {
+          if (settled) return;
+          settled = true;
+          window.dispatchEvent(new Event("webscan-opencv-failed"));
+        }
+
+        if (window.cv) {
+          // The script already finished loading the JS wrapper by the
+          // time this runs; the WASM runtime inside it may still be
+          // initialising, so onRuntimeInitialized is still the signal
+          // to wait for rather than treating `cv` existing as ready.
+          window.cv["onRuntimeInitialized"] = ready;
+        } else {
+          failed();
+        }
+
+        // 20s covers a slow mobile load of the ~10MB runtime; past that
+        // the camera should tell the user detection isn't available
+        // rather than leave them staring at a guide that never appears.
+        setTimeout(failed, 20000);
+      })();
+    </script>
 
     <!-- Local pixel-level document enhancement -->
     <script src="enhance-engine.js"></script>
