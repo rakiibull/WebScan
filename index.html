@@ -683,7 +683,73 @@
 
       <div class="editor-preview">
 
+        <button
+          id="deletePageBtn"
+          class="editor-preview-delete"
+          type="button"
+          aria-label="Delete this page"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 6.8h14M9.6 6.8V4.6a1 1 0 0 1 1-1h2.8a1 1 0 0 1 1 1v2.2M7.4 6.8 8 19a1.4 1.4 0 0 0 1.4 1.3h5.2A1.4 1.4 0 0 0 16 19l.6-12.2"
+              stroke="currentColor" stroke-width="1.9" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
         <canvas id="editorCanvas"></canvas>
+
+      </div>
+
+
+      <!-- PAGE NAVIGATION + COMPARE -->
+
+      <div class="editor-pagenav">
+
+        <div class="editor-pagenav-steps">
+
+          <button
+            id="editorPrevBtn"
+            type="button"
+            class="pagenav-btn"
+            aria-label="Previous page"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m14.6 5.4-6.6 6.6 6.6 6.6"
+                stroke="currentColor" stroke-width="2" fill="none"
+                stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <span id="editorPageNavLabel">1 / 1</span>
+
+          <button
+            id="editorNextBtn"
+            type="button"
+            class="pagenav-btn"
+            aria-label="Next page"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9.4 5.4 6.6 6.6-6.6 6.6"
+                stroke="currentColor" stroke-width="2" fill="none"
+                stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+        </div>
+
+        <button
+          id="compareBtn"
+          type="button"
+          class="compare-btn"
+          hidden
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8.6 3.6v16.8M3.6 8.6h4v-4M20.4 15.4h-4v4"
+              stroke="currentColor" stroke-width="1.8" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Compare
+        </button>
 
       </div>
 
@@ -743,38 +809,43 @@
         <div class="filter-row">
 
           <button
-            class="filter-btn active"
+            class="filter-card active"
             data-filter="original"
           >
-            Original
+            <span class="filter-thumb"><img alt=""></span>
+            <span class="filter-label">Original</span>
           </button>
 
           <button
-            class="filter-btn"
+            class="filter-card"
             data-filter="auto"
           >
-            Auto Scan
+            <span class="filter-thumb"><img alt=""></span>
+            <span class="filter-label">Auto Scan</span>
           </button>
 
           <button
-            class="filter-btn"
+            class="filter-card"
             data-filter="gray"
           >
-            Grayscale
+            <span class="filter-thumb"><img alt=""></span>
+            <span class="filter-label">Grayscale</span>
           </button>
 
           <button
-            class="filter-btn"
+            class="filter-card"
             data-filter="bw"
           >
-            B&amp;W
+            <span class="filter-thumb"><img alt=""></span>
+            <span class="filter-label">B&amp;W</span>
           </button>
 
           <button
-            class="filter-btn"
+            class="filter-card"
             data-filter="magic"
           >
-            Color
+            <span class="filter-thumb"><img alt=""></span>
+            <span class="filter-label">Color</span>
           </button>
 
         </div>
@@ -791,6 +862,21 @@
         </div>
 
         <div class="adjust-row">
+
+          <button
+            id="retakeBtn"
+            class="adjust-btn"
+          >
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8.4 5.4 9.6 3.6h4.8l1.2 1.8h2.4a1.8 1.8 0 0 1 1.8 1.8v9.6a1.8 1.8 0 0 1-1.8 1.8H5.4a1.8 1.8 0 0 1-1.8-1.8V7.2a1.8 1.8 0 0 1 1.8-1.8Z"
+                  stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
+                <circle cx="12" cy="12.6" r="3.3"
+                  stroke="currentColor" stroke-width="1.8" fill="none"/>
+              </svg>
+            </span>
+            <small>Retake</small>
+          </button>
 
           <button
             class="adjust-btn"
@@ -908,7 +994,21 @@
                   stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </span>
-            <small>Rotate</small>
+            <small>Left</small>
+          </button>
+
+          <button
+            id="signBtn"
+            class="adjust-btn"
+          >
+            <span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.6 4.6a2 2 0 0 1 2.8 0l1 1a2 2 0 0 1 0 2.8L9.2 18.6l-4.2 1 1-4.2Z"
+                  stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/>
+                <path d="M14 6.2 17.8 10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <small>Sign</small>
           </button>
 
           <button
@@ -1758,6 +1858,9 @@
 
     <!-- Manual corner adjustment / crop editor -->
     <script src="crop-editor.js"></script>
+
+    <!-- Draw, place and resize a signature onto a page -->
+    <script src="signature-editor.js"></script>
 
     <!-- Multi-page session manager -->
     <script src="page-manager.js"></script>

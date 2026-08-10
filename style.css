@@ -1538,12 +1538,14 @@ svg {
 }
 
 .editor-preview {
+  position: relative;
+
   display: grid;
   place-items: center;
 
   padding: 14px;
   border-radius: var(--radius-lg);
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1559,6 +1561,127 @@ svg {
 
   border-radius: 10px;
   box-shadow: var(--shadow);
+}
+
+.editor-preview-delete {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+
+  width: 34px;
+  height: 34px;
+
+  display: grid;
+  place-items: center;
+
+  border: 0;
+  border-radius: 50%;
+
+  background: rgba(12, 18, 26, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+
+  transition: transform var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+
+.editor-preview-delete svg {
+  width: 17px;
+  height: 17px;
+}
+
+.editor-preview-delete:active {
+  transform: scale(0.9);
+  background: rgba(255, 95, 109, 0.55);
+}
+
+
+.editor-pagenav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  margin-bottom: 18px;
+}
+
+.editor-pagenav-steps {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-dim);
+}
+
+.pagenav-btn {
+  width: 32px;
+  height: 32px;
+  flex: none;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid var(--border);
+  border-radius: 50%;
+
+  background: var(--surface);
+  color: var(--text-dim);
+
+  transition: transform var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.pagenav-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pagenav-btn:active {
+  transform: scale(0.9);
+}
+
+.pagenav-btn:disabled {
+  opacity: 0.35;
+}
+
+.pagenav-btn:disabled:active {
+  transform: none;
+}
+
+.compare-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 8px 13px;
+  min-height: 32px;
+
+  border: 1px solid var(--border);
+  border-radius: 999px;
+
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 650;
+
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+
+.compare-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.compare-btn[hidden] {
+  display: none;
+}
+
+.compare-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .editor-notice {
@@ -1652,35 +1775,64 @@ svg {
   display: none;
 }
 
-.filter-btn {
+.filter-card {
   flex: none;
-  padding: 11px 16px;
-  min-height: 44px;
 
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
+  width: 68px;
+  padding: 0;
 
-  transition:
-    background var(--fast) var(--ease),
-    color var(--fast) var(--ease),
-    transform var(--fast) var(--ease);
+  background: transparent;
+  border: 0;
+
+  transition: transform var(--fast) var(--ease);
 }
 
-.filter-btn:active {
+.filter-card:active {
   transform: scale(0.95);
 }
 
-.filter-btn.active {
-  background: var(--accent);
+.filter-thumb {
+  display: block;
+  width: 68px;
+  height: 88px;
+
+  border-radius: 12px;
+  overflow: hidden;
+
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+
+.filter-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.filter-label {
+  font-size: 11.5px;
+  font-weight: 620;
+  color: var(--text-dim);
+  white-space: nowrap;
+
+  transition: color var(--fast) var(--ease);
+}
+
+.filter-card.active .filter-thumb {
   border-color: var(--accent);
-  color: var(--on-accent);
   box-shadow: var(--shadow-accent);
+}
+
+.filter-card.active .filter-label {
+  color: var(--accent);
 }
 
 .adjust-row {

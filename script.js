@@ -29,6 +29,11 @@ const state = {
   // itself for. Cleared once addressed; never persisted with the page.
   autoCropFailedPageId: null,
 
+  // Set by retakeCurrentPage() right before reopening the camera, so
+  // handleFiles() knows to splice the reshot photo back into this exact
+  // slot instead of appending it as a new page. Cleared once consumed.
+  retakeIndex: null,
+
   documents: [],
 
   editing: false,
@@ -839,6 +844,8 @@ async function handleFiles(files) {
       );
 
 
+  let landedOnRetake = false;
+
   for (const file of imageFiles) {
 
     try {
@@ -855,7 +862,18 @@ async function handleFiles(files) {
           window.webscanLastCorners || null
         );
 
-      state.pages.push(page);
+      // A fresh createPage() call means `page.originalSrc` is the new
+      // photo, not the retaken one's -- unlike page-manager's Replace,
+      // which patches `src` in place and leaves originalSrc stale.
+      if (state.retakeIndex !== null && state.pages[state.retakeIndex]) {
+        state.pages[state.retakeIndex] = page;
+        state.currentPage = state.retakeIndex;
+        landedOnRetake = true;
+      } else {
+        state.pages.push(page);
+      }
+
+      state.retakeIndex = null;
 
 
       if (window.webscanAutoCropFailed) {
@@ -875,8 +893,10 @@ async function handleFiles(files) {
   }
 
 
-  state.currentPage =
-    Math.max(0, state.pages.length - 1);
+  if (!landedOnRetake) {
+    state.currentPage =
+      Math.max(0, state.pages.length - 1);
+  }
 
 
   updatePages();
@@ -1119,6 +1139,68 @@ function deletePage(index) {
    EDITOR
 ===================================================== */
 
+/*
+  Discards the page currently open in the editor and reopens the live
+  camera so the user can reshoot it. Deliberately does not call
+  openCamera() -- that wipes the whole multi-page session, which is
+  right for starting a fresh scan from the home screen but wrong here.
+  handleFiles() reads state.retakeIndex to splice the reshot photo back
+  into this exact slot instead of appending it as a new page.
+*/
+function retakeCurrentPage() {
+
+  if (!state.pages[state.currentPage]) {
+
+    return;
+
+  }
+
+
+  state.retakeIndex =
+    state.currentPage;
+
+  showScreen("camera");
+
+  startCamera();
+
+}
+
+
+/*
+  Deletes the page currently open in the editor. No confirmation, to
+  match every other delete entry point in the app (thumbnail strip,
+  page-manager action sheet) -- none of them ask first either.
+*/
+function deleteCurrentPage() {
+
+  const index =
+    state.currentPage;
+
+  if (!state.pages[index]) {
+
+    return;
+
+  }
+
+
+  deletePage(index);
+
+
+  if (state.pages.length) {
+
+    openEditor(state.currentPage);
+
+  } else {
+
+    showScreen("camera");
+
+    startCamera();
+
+  }
+
+}
+
+
 function openEditor(index = 0) {
 
   if (!state.pages.length) {
@@ -1149,6 +1231,11 @@ function openEditor(index = 0) {
 
   loadPageIntoState(page);
 
+  // A stale "showing original" toggle from a previous page would be
+  // confusing carried over to this one, so every fresh open starts
+  // back on the normal (fully-processed) view.
+  comparingOriginal = false;
+
 
   showScreen("editor");
 
@@ -1165,6 +1252,99 @@ function openEditor(index = 0) {
 
   syncAutoCropNotice(page);
 
+  syncEditorPageNav();
+
+  // Unconditional rather than only-on-first-open, so re-entering the
+  // editor after a page-manager rotate/replace (which can change the
+  // page's pixels without going through this editor at all) still
+  // shows current thumbnails rather than stale or missing ones.
+  renderFilterThumbnails(page);
+
+
+  renderEditor();
+
+}
+
+
+/*
+  Enables/disables the in-editor prev/next arrows at the ends of the
+  page list, and hides Compare where there is nothing to compare
+  against (pages reopened from a saved document have their
+  originalSrc deliberately stripped before storage).
+*/
+function syncEditorPageNav() {
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  $("editorPrevBtn").disabled =
+    state.currentPage <= 0;
+
+  $("editorNextBtn").disabled =
+    state.currentPage >= state.pages.length - 1;
+
+  $("editorPageNavLabel").textContent =
+    `${state.currentPage + 1} / ${state.pages.length}`;
+
+
+  const compareBtn =
+    $("compareBtn");
+
+  compareBtn.hidden =
+    !page?.originalSrc;
+
+  compareBtn.classList.toggle(
+    "active",
+    comparingOriginal
+  );
+
+}
+
+
+function editorPrevPage() {
+
+  if (state.currentPage > 0) {
+
+    openEditor(state.currentPage - 1);
+
+  }
+
+}
+
+
+function editorNextPage() {
+
+  if (state.currentPage < state.pages.length - 1) {
+
+    openEditor(state.currentPage + 1);
+
+  }
+
+}
+
+
+let comparingOriginal = false;
+
+function toggleCompare() {
+
+  const page =
+    state.pages[state.currentPage];
+
+  if (!page?.originalSrc) {
+
+    return;
+
+  }
+
+
+  comparingOriginal =
+    !comparingOriginal;
+
+  $("compareBtn").classList.toggle(
+    "active",
+    comparingOriginal
+  );
 
   renderEditor();
 
@@ -1270,19 +1450,38 @@ function renderEditor() {
 
   img.onload = () => {
 
-    drawProcessedImage(
-      img,
+    if (comparingOriginal) {
+
+      // The raw, untouched capture: no rotation, filter or
+      // enhancement, so it's a genuine "before" next to the
+      // fully-processed "after" drawProcessedImage renders otherwise.
+      editorCanvas.width = img.naturalWidth;
+      editorCanvas.height = img.naturalHeight;
+
       editorCanvas
-    );
+        .getContext("2d")
+        .drawImage(img, 0, 0);
+
+    } else {
+
+      drawProcessedImage(
+        img,
+        editorCanvas
+      );
+
+    }
 
   };
 
 
-  img.src = page.src;
+  img.src =
+    comparingOriginal
+      ? page.originalSrc
+      : page.src;
 
 
   document
-    .querySelectorAll(".filter-btn")
+    .querySelectorAll(".filter-card")
     .forEach(btn => {
 
       btn.classList.toggle(
@@ -1386,6 +1585,162 @@ function drawProcessedImage(
 
 
   ctx.filter = "none";
+
+}
+
+
+/*
+  A small rotated (but not filtered/enhanced) copy of `img`, for the
+  filter-picker thumbnails. Mirrors drawProcessedImage's rotation
+  transform at a fraction of the size, since regenerating full-
+  resolution previews for every filter on every page open would be
+  far more work than the thumbnails need.
+*/
+function makeRotatedThumbSource(img, rotation, maxSize) {
+
+  const normalised =
+    ((rotation % 360) + 360) % 360;
+
+  const naturalW = img.naturalWidth;
+  const naturalH = img.naturalHeight;
+
+  let width = naturalW;
+  let height = naturalH;
+
+  if (normalised === 90 || normalised === 270) {
+
+    [width, height] = [height, width];
+
+  }
+
+
+  const scale =
+    Math.min(1, maxSize / Math.max(width, height));
+
+  const canvas =
+    document.createElement("canvas");
+
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+
+
+  const ctx =
+    canvas.getContext("2d");
+
+  ctx.save();
+
+  ctx.translate(
+    canvas.width / 2,
+    canvas.height / 2
+  );
+
+  ctx.rotate(normalised * Math.PI / 180);
+
+  ctx.scale(scale, scale);
+
+  ctx.drawImage(
+    img,
+    -naturalW / 2,
+    -naturalH / 2
+  );
+
+  ctx.restore();
+
+  return canvas;
+
+}
+
+
+const FILTER_THUMB_MODES = ["original", "auto", "gray", "bw", "magic"];
+
+const FILTER_THUMB_SIZE = 160;
+
+// Explicitly invalidated (not derived from rotation/content), the same
+// way enhanceCache below is reset wherever a page's pixels actually
+// change -- a derived key risks silently missing an invalidation site.
+let thumbCache = {
+  pageId: null
+};
+
+/*
+  Regenerates the filter row's preview thumbnails from the current
+  page. A no-op once already rendered for this exact page, so calling
+  it on every editor open is cheap in the common case.
+*/
+function renderFilterThumbnails(page) {
+
+  if (!page || thumbCache.pageId === page.id) {
+
+    return;
+
+  }
+
+
+  const img =
+    new Image();
+
+
+  img.onload = () => {
+
+    const small =
+      makeRotatedThumbSource(
+        img,
+        page.rotation || 0,
+        FILTER_THUMB_SIZE
+      );
+
+
+    FILTER_THUMB_MODES.forEach(mode => {
+
+      const target =
+        document.querySelector(
+          `.filter-card[data-filter="${mode}"] .filter-thumb img`
+        );
+
+      if (!target) {
+
+        return;
+
+      }
+
+
+      let out = small;
+
+      if (mode !== "original" && window.WebScanEnhance) {
+
+        try {
+
+          out =
+            window.WebScanEnhance.enhance(
+              small,
+              {
+                mode,
+                shadowRemoval: true,
+                sharpness: 0
+              }
+            );
+
+        } catch (error) {
+
+          console.warn("Filter thumbnail failed:", error);
+
+        }
+
+      }
+
+
+      target.src =
+        out.toDataURL("image/jpeg", 0.82);
+
+    });
+
+
+    thumbCache.pageId = page.id;
+
+  };
+
+
+  img.src = page.src;
 
 }
 
@@ -1669,6 +2024,7 @@ function openManualCrop() {
       // The page id is unchanged but its pixels are not, so the
       // cached enhancement must be dropped or a stale image shows.
       enhanceCache = { key: null, canvas: null };
+      thumbCache.pageId = null;
 
 
       // The crop this notice was nudging toward has now happened.
@@ -1684,6 +2040,8 @@ function openManualCrop() {
 
       renderEditor();
 
+      renderFilterThumbnails(page);
+
       updatePages();
 
       showToast("Crop applied");
@@ -1695,17 +2053,89 @@ function openManualCrop() {
 }
 
 
+/*
+  Opens the signature pad, then bakes the placed result onto the
+  current page permanently -- same shape as openManualCrop() above, so
+  a page's signature is undoable the same way a crop is (page.src is
+  the only thing that changes, and it's already tracked by
+  WebScanHistory).
+*/
+function openSignature() {
+
+  const page =
+    state.pages[state.currentPage];
+
+
+  if (!page || !window.WebScanSignature) {
+
+    showToast(
+      window.WebScanMessages?.NOTICE?.signUnavailable || "Signature tool is unavailable right now.",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  window.WebScanSignature.open({
+
+    dataUrl: page.src,
+
+    onApply: (canvas) => {
+
+      page.src =
+        canvas.toDataURL(
+          "image/jpeg",
+          0.95
+        );
+
+
+      enhanceCache = { key: null, canvas: null };
+      thumbCache.pageId = null;
+
+
+      window.WebScanHistory?.commit(page);
+
+
+      renderEditor();
+
+      renderFilterThumbnails(page);
+
+      updatePages();
+
+      showToast("Signature added");
+
+    }
+
+  });
+
+}
+
+
 function rotateImage() {
 
+  // Counter-clockwise ("Left"), unlike page-manager's own independent
+  // rotate action which stays clockwise -- a different button on a
+  // different screen, left as it was.
   state.rotation =
-    (state.rotation + 90) % 360;
+    (state.rotation - 90 + 360) % 360;
 
 
   state.pages[state.currentPage].rotation =
     state.rotation;
 
+  // Baked into the filter thumbnails, unlike enhanceCache which
+  // doesn't need this (rotation is applied downstream of enhancement
+  // at render time, but thumbnails are static images).
+  thumbCache.pageId = null;
+
 
   renderEditor();
+
+  renderFilterThumbnails(
+    state.pages[state.currentPage]
+  );
 
   commitEditorHistory();
 
@@ -1825,8 +2255,11 @@ function afterHistoryChange(page) {
   loadPageIntoState(page);
 
   enhanceCache = { key: null, canvas: null };
+  thumbCache.pageId = null;
 
   renderEditor();
+
+  renderFilterThumbnails(page);
 
   updatePages();
 
@@ -4665,6 +5098,48 @@ $("cropBtn")
   );
 
 
+$("signBtn")
+  .addEventListener(
+    "click",
+    openSignature
+  );
+
+
+$("retakeBtn")
+  .addEventListener(
+    "click",
+    retakeCurrentPage
+  );
+
+
+$("deletePageBtn")
+  .addEventListener(
+    "click",
+    deleteCurrentPage
+  );
+
+
+$("editorPrevBtn")
+  .addEventListener(
+    "click",
+    editorPrevPage
+  );
+
+
+$("editorNextBtn")
+  .addEventListener(
+    "click",
+    editorNextPage
+  );
+
+
+$("compareBtn")
+  .addEventListener(
+    "click",
+    toggleCompare
+  );
+
+
 $("autoCropNoticeBtn")
   .addEventListener(
     "click",
@@ -5547,6 +6022,7 @@ window.webscanPageAPI = {
         page.corners = null;
 
         enhanceCache = { key: null, canvas: null };
+        thumbCache.pageId = null;
 
         window.WebScanHistory?.commit(page);
 
@@ -5559,6 +6035,8 @@ window.webscanPageAPI = {
         if (state.currentPage === index) {
 
           renderEditor();
+
+          renderFilterThumbnails(page);
 
         }
 
@@ -5575,19 +6053,28 @@ window.webscanPageAPI = {
   invalidateEnhanceCache() {
 
     enhanceCache = { key: null, canvas: null };
+    thumbCache.pageId = null;
 
   },
 
 
   refreshEditor(index) {
 
-    // Only redraw when the edited page is the one on screen.
+    // Only redraw when the edited page is the one on screen. Rotation
+    // and replace both change what the filter thumbnails should show
+    // (rotate bakes orientation into them; replace changes src) but
+    // neither goes through the editor's own rotate/crop functions, so
+    // this is the one shared place both end up refreshing through.
     if (
       state.currentPage === index &&
       screens.editor.classList.contains("active")
     ) {
 
+      thumbCache.pageId = null;
+
       renderEditor();
+
+      renderFilterThumbnails(state.pages[index]);
 
     }
 

@@ -827,3 +827,170 @@
   background: var(--ws-accent, #12d6a4);
   transform: translate(-50%, -50%) scale(1.15);
 }
+
+
+/* =========================================================
+   WebScan Signature Editor
+
+   Draw, then place/resize -- shares the same full-screen
+   overlay language as the crop editor above (.ws-crop-*), so
+   the two feel like one consistent "sub-editor" pattern.
+   ========================================================= */
+
+.ws-sign-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: none;
+  flex-direction: column;
+  background: #06070a;
+  color: #fff;
+}
+
+.ws-sign-overlay.show {
+  display: flex;
+}
+
+.ws-sign-draw,
+.ws-sign-place {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.ws-sign-draw[hidden],
+.ws-sign-place[hidden] {
+  display: none;
+}
+
+.ws-sign-header,
+.ws-sign-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(12,14,19,.96);
+}
+
+.ws-sign-header {
+  padding-top: calc(14px + env(safe-area-inset-top));
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.ws-sign-header strong {
+  font-size: 14px;
+}
+
+.ws-sign-footer {
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.ws-sign-hint {
+  font-size: 11px;
+  color: rgba(255,255,255,.55);
+}
+
+.ws-sign-cancel,
+.ws-sign-clear,
+.ws-sign-back {
+  background: transparent;
+  border: 0;
+  color: rgba(255,255,255,.8);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 4px;
+}
+
+.ws-sign-draw-done,
+.ws-sign-place-done {
+  border: 0;
+  border-radius: 22px;
+  padding: 11px 26px;
+  background: var(--ws-accent, #12d6a4);
+  color: #04231c;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ws-sign-pad-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 16px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  /* A signature is drawn against paper, not the app's dark theme --
+     white here regardless of the rest of the UI. */
+  touch-action: none;
+}
+
+.ws-sign-pad {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ws-sign-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.ws-sign-doc-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ws-sign-sticker {
+  position: absolute;
+  /* left/top/width/height set inline, from document-space math. */
+  touch-action: none;
+  cursor: grab;
+}
+
+.ws-sign-sticker.ws-dragging {
+  cursor: grabbing;
+}
+
+.ws-sign-sticker-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.35));
+}
+
+.ws-sign-resize-handle {
+  position: absolute;
+  right: -13px;
+  bottom: -13px;
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 3px solid var(--ws-accent, #12d6a4);
+  border-radius: 50%;
+  background: rgba(6,17,15,.75);
+  box-shadow: 0 0 14px rgba(18,214,164,.45);
+  touch-action: none;
+  cursor: nwse-resize;
+}
+
+.ws-sign-resize-handle::after {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+}
