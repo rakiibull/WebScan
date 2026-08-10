@@ -1653,7 +1653,18 @@ function makeRotatedThumbSource(img, rotation, maxSize) {
 
 const FILTER_THUMB_MODES = ["original", "auto", "gray", "bw", "magic"];
 
-const FILTER_THUMB_SIZE = 160;
+/*
+  640, not a smaller "true thumbnail" size. B&W's adaptive threshold
+  uses a fixed 25px pixel neighbourhood (enhance-engine.js), not a
+  scale-relative one like the CLAHE-based modes' tile grid -- so at a
+  small size like 160px that neighbourhood covers a much bigger share
+  of the image than it does on a real capture, and the result comes
+  out far blotchier than the same filter looks at full resolution
+  (measured ~4x more black pixels at 160px than at native size on a
+  cluttered-background test photo; ~1.5x at 640px). 640 is close to
+  the smallest size where that stops being visually misleading.
+*/
+const FILTER_THUMB_SIZE = 640;
 
 // Explicitly invalidated (not derived from rotation/content), the same
 // way enhanceCache below is reset wherever a page's pixels actually
