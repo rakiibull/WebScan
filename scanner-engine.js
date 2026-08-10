@@ -667,12 +667,8 @@
   const modeBar = document.createElement("div");
   modeBar.className = "ws-mode-bar";
   modeBar.innerHTML = `
-    <button class="ws-mode" data-mode="Text">Text</button>
     <button class="ws-mode" data-mode="ID Card">ID Card</button>
-    <button class="ws-mode" data-mode="Sign">Sign</button>
     <button class="ws-mode active" data-mode="Scan">Scan</button>
-    <button class="ws-mode" data-mode="To Word">To Word</button>
-    <button class="ws-mode" data-mode="Question Set">Question Set</button>
   `;
   cameraScreen.appendChild(modeBar);
 
