@@ -81,11 +81,19 @@
   display: none;
 }
 
+/*
+  Boxed to a 4:3 (3:4 portrait) preview instead of full-bleed.
+  `inset: 0` + `margin: auto` centres the box; the two `min()` formulas
+  each pick whichever axis is the tighter fit, so together they always
+  land on an exact 3:4 box with the rest of #cameraScreen's dark
+  background showing through as the letterbox bars.
+*/
 #cameraScreen.ws-pro-camera .camera-view {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  margin: auto;
+  width: min(100%, 75dvh);
+  height: min(100dvh, 133.334vw);
   background: #000;
   overflow: hidden;
 }
@@ -622,11 +630,11 @@
 
 @media (min-width: 700px) {
   #cameraScreen.ws-pro-camera .camera-view {
-    max-width: 520px;
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    width: min(100%, 520px);
+    /* Same 3:4 contain-fit, additionally capped at 520px so the box
+       doesn't balloon on wide desktop windows; margin: auto above
+       already centres it, so no positioning override is needed here. */
+    width: min(100%, 75dvh, 520px);
+    height: min(100dvh, 133.334vw, 693.33px);
   }
 
   #cameraScreen.ws-pro-camera .camera-header,
