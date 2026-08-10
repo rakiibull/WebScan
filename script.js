@@ -624,6 +624,9 @@ function stopCamera() {
 
   video.style.transform = "";
 
+
+  window.webscanResetCardCapture?.();
+
 }
 
 

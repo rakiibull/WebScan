@@ -62,6 +62,11 @@
   let stableSince = null;
   let autoCapturing = false;
 
+  // Holds the front side of an ID card between the two captures of a
+  // front+back session, so the second capture can be combined with it
+  // into one page instead of landing as its own separate page.
+  let pendingCardFront = null;
+
   const AUTO_CAPTURE_HOLD_MS = 900;
 
   // Temporal smoothing state. Detection runs per frame and is noisy, so
@@ -648,6 +653,29 @@
 
   cameraScreen.appendChild(pagesChip);
 
+  /*
+    Shown only mid-way through an ID Card capture, once the front is
+    held and the back is still needed. Tapping it discards the front
+    and starts that side over, for a bad first capture.
+  */
+  const cardFrontChip = document.createElement("button");
+  cardFrontChip.type = "button";
+  cardFrontChip.className = "ws-card-front-chip";
+  cardFrontChip.hidden = true;
+  cardFrontChip.innerHTML = `Front captured &middot; tap to retake`;
+
+  cardFrontChip.addEventListener("click", () => {
+    pendingCardFront = null;
+    syncCardFrontChip();
+    setStatus("ID Card mode — fit the card inside the guide", "ready");
+  });
+
+  cameraScreen.appendChild(cardFrontChip);
+
+  function syncCardFrontChip() {
+    cardFrontChip.hidden = !pendingCardFront;
+  }
+
   const bottomActions = cameraScreen.querySelector(".camera-bottom-actions");
 
   function syncPagesChip() {
@@ -694,6 +722,17 @@
   settingsBtn?.addEventListener("click", () => {
     sheet.classList.toggle("show");
   });
+
+  // While set to a future timestamp, the live detection loop leaves the
+  // status pill alone so an instruction that needs to be read -- "now
+  // flip the card and scan the back" -- isn't overwritten by the next
+  // detection tick a few hundred milliseconds later.
+  let statusHoldUntil = 0;
+
+  function holdStatus(text, type, ms) {
+    statusHoldUntil = Date.now() + ms;
+    setStatus(text, type);
+  }
 
   function setStatus(text, type = "") {
     status.className = "ws-live-status " + type;
@@ -1431,10 +1470,12 @@
 
       captureReady = readiness.ok && settled;
 
-      if (!readiness.ok) {
-        setStatus(readiness.message, "warn");
-      } else {
-        setStatus(settled ? readiness.message : msg("holdSteady", "Hold your device steady."), "ready");
+      if (Date.now() >= statusHoldUntil) {
+        if (!readiness.ok) {
+          setStatus(readiness.message, "warn");
+        } else {
+          setStatus(settled ? readiness.message : msg("holdSteady", "Hold your device steady."), "ready");
+        }
       }
 
       liveOverlay.classList.toggle("ws-quad-ready", captureReady);
@@ -1451,7 +1492,10 @@
         stableSince = null;
         captureReady = false;
         lastQuality = null;
-        setStatus(msg("searching", "Place the document inside the frame."));
+
+        if (Date.now() >= statusHoldUntil) {
+          setStatus(msg("searching", "Place the document inside the frame."));
+        }
       }
     }
   }
@@ -1701,6 +1745,41 @@
     }
   }
 
+  /*
+    Stacks a corrected front and back card capture into a single page,
+    front on top, matching how CamScanner's ID card mode hands back one
+    combined image instead of two separate pages.
+
+    Both sides are scaled to the same width -- the wider of the two --
+    since a card photographed on two separate shots rarely lands at
+    identical pixel dimensions even though the physical card is fixed
+    size, and mismatched widths would otherwise letterbox one side.
+  */
+  function combineCardSides(frontCanvas, backCanvas) {
+    const gap = Math.round(Math.max(frontCanvas.width, backCanvas.width) * 0.045);
+    const margin = gap;
+
+    const width = Math.max(frontCanvas.width, backCanvas.width) + margin * 2;
+
+    const frontHeight = Math.round(frontCanvas.height * (width - margin * 2) / frontCanvas.width);
+    const backHeight = Math.round(backCanvas.height * (width - margin * 2) / backCanvas.width);
+
+    const height = margin * 2 + frontHeight + gap + backHeight;
+
+    const out = document.createElement("canvas");
+    out.width = width;
+    out.height = height;
+
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = "#f3f4f6";
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.drawImage(frontCanvas, margin, margin, width - margin * 2, frontHeight);
+    ctx.drawImage(backCanvas, margin, margin + frontHeight + gap, width - margin * 2, backHeight);
+
+    return out;
+  }
+
   async function addProcessedImageToExistingApp(canvas) {
     return new Promise((resolve, reject) => {
       try {
@@ -1836,14 +1915,42 @@
       window.webscanLastCorners = warped ? null : corners;
       window.webscanAutoCropFailed = autoCropFailed;
 
-      await addProcessedImageToExistingApp(result);
+      if (mode === "ID Card") {
 
-      setStatus(
-        warped
-          ? "Document corrected"
-          : "Scan captured",
-        "ready"
-      );
+        if (!pendingCardFront) {
+          // First of the two shots: hold it and ask for the back
+          // instead of sending it to the editor as its own page.
+          pendingCardFront = result;
+          syncCardFrontChip();
+
+          holdStatus("Front captured — now flip the card and scan the back", "ready", 2200);
+
+        } else {
+          const combined = combineCardSides(pendingCardFront, result);
+
+          pendingCardFront = null;
+          syncCardFrontChip();
+
+          window.webscanLastCorners = null;
+          window.webscanAutoCropFailed = false;
+
+          await addProcessedImageToExistingApp(combined);
+
+          setStatus("Both sides captured", "ready");
+        }
+
+      } else {
+
+        await addProcessedImageToExistingApp(result);
+
+        setStatus(
+          warped
+            ? "Document corrected"
+            : "Scan captured",
+          "ready"
+        );
+
+      }
 
       // "To Word" mode automatically runs OCR after the corrected scan.
       // The OCR engine is loaded only when this mode is used.
@@ -1912,7 +2019,16 @@
     const btn = event.target.closest?.(".ws-mode");
     if (!btn) return;
 
-    mode = btn.dataset.mode || "Scan";
+    const next = btn.dataset.mode || "Scan";
+
+    // Leaving ID Card mode mid-flow drops a held front rather than
+    // letting it silently combine with whatever is captured next.
+    if (mode === "ID Card" && next !== "ID Card" && pendingCardFront) {
+      pendingCardFront = null;
+      syncCardFrontChip();
+    }
+
+    mode = next;
     document.querySelectorAll(".ws-mode").forEach(el => {
       el.classList.toggle("active", el === btn);
     });
@@ -1966,6 +2082,16 @@
 
   window.addEventListener("webscan-autocapture-changed", syncAutoButton);
   syncAutoButton();
+
+  /*
+    Called by script.js's stopCamera() whenever the camera screen is
+    left. A held ID Card front should not survive to be combined with
+    an unrelated capture the next time the camera opens.
+  */
+  window.webscanResetCardCapture = () => {
+    pendingCardFront = null;
+    syncCardFrontChip();
+  };
 
   topHd?.addEventListener("click", () => {
     topHd.classList.toggle("active");
