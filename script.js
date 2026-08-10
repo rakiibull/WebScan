@@ -796,20 +796,22 @@ function capturePhoto() {
     );
 
 
-  state.pages.push(
-    createPage(data)
-  );
+  pickAutoFilter(data).then(autoFilter => {
 
+    state.pages.push(
+      createPage(data, null, autoFilter)
+    );
 
-  state.currentPage =
-    state.pages.length - 1;
+    state.currentPage =
+      state.pages.length - 1;
 
+    updatePages();
 
-  updatePages();
+    showToast(
+      `Page ${state.pages.length} captured`
+    );
 
-  showToast(
-    `Page ${state.pages.length} captured`
-  );
+  });
 
 }
 
@@ -854,12 +856,21 @@ async function handleFiles(files) {
         await fileToDataURL(file);
 
 
+      // Only a fresh camera capture gets an automatic filter choice --
+      // gallery imports may already be edited photos, not raw scans,
+      // so they keep opening as "Original".
+      const autoFilter =
+        window.webscanFromCamera
+          ? await pickAutoFilter(data)
+          : "original";
+
       // Corners detected at capture time pre-fill the manual crop
       // handles. Null for gallery imports and already-cropped scans.
       const page =
         createPage(
           data,
-          window.webscanLastCorners || null
+          window.webscanLastCorners || null,
+          autoFilter
         );
 
       // A fresh createPage() call means `page.originalSrc` is the new
@@ -883,6 +894,7 @@ async function handleFiles(files) {
 
       window.webscanLastCorners = null;
       window.webscanAutoCropFailed = false;
+      window.webscanFromCamera = false;
 
     } catch (error) {
 
@@ -916,13 +928,82 @@ async function handleFiles(files) {
 
 
 /*
+  Looks at a captured photo and picks the filter CamScanner-style
+  "magic color" would land on: vivid/colourful subjects (forms,
+  photos, whiteboards with markers) keep their colour with a lift,
+  while flat, mostly-neutral pages -- plain printed or handwritten
+  text -- get the stronger document contrast curve instead.
+
+  Sampled on a tiny canvas so this stays cheap even on a 12MP photo.
+*/
+function pickAutoFilter(dataURL) {
+
+  return new Promise(resolve => {
+
+    const img = new Image();
+
+    img.onload = () => {
+
+      const size = 48;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, size, size);
+
+      let sample;
+
+      try {
+        sample = ctx.getImageData(0, 0, size, size).data;
+      } catch (error) {
+        resolve("auto");
+        return;
+      }
+
+      let saturationTotal = 0;
+      const pixels = sample.length / 4;
+
+      for (let i = 0; i < sample.length; i += 4) {
+
+        const r = sample[i];
+        const g = sample[i + 1];
+        const b = sample[i + 2];
+
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+
+        saturationTotal += max === 0 ? 0 : (max - min) / max;
+
+      }
+
+      const avgSaturation = saturationTotal / pixels;
+
+      // Plain document pages are close to grayscale (ink on paper);
+      // anything noticeably more colourful is treated as a subject
+      // worth keeping in colour.
+      resolve(avgSaturation > 0.12 ? "magic" : "auto");
+
+    };
+
+    img.onerror = () => resolve("auto");
+
+    img.src = dataURL;
+
+  });
+
+}
+
+
+/*
   Builds a page with the full non-destructive edit model.
 
   `originalSrc` is written once here and never again, so the untouched
   capture is always recoverable no matter how the page is later cropped
   or adjusted.
 */
-function createPage(data, corners = null) {
+function createPage(data, corners = null, filter = "original") {
 
   return {
 
@@ -938,7 +1019,7 @@ function createPage(data, corners = null) {
       ? corners.map(p => ({ ...p }))
       : null,
 
-    filter: "original",
+    filter: filter,
 
     brightness: 0,
 
@@ -2801,7 +2882,12 @@ function loadImage(src) {
    EXPORT JPG
 ===================================================== */
 
-async function exportJPG() {
+/*
+  Renders the export and stashes it on state.lastExport, without
+  saving it to disk. exportJPG()/exportPDF() build on this so the
+  same render backs both the download and the share sheet.
+*/
+async function buildJPGExport() {
 
   const page =
     state.pages[0];
@@ -2809,7 +2895,7 @@ async function exportJPG() {
 
   if (!page) {
 
-    return;
+    return null;
 
   }
 
@@ -2818,17 +2904,52 @@ async function exportJPG() {
     await createProcessedData(page);
 
 
+  const result = {
+    blob: dataURLToBlob(data),
+    filename: `${safeFilename(state.documentName)}.jpg`
+  };
+
+
+  state.lastExport = result;
+
+  return result;
+
+}
+
+
+async function exportJPG() {
+
+  const result =
+    await buildJPGExport();
+
+
+  if (!result) {
+
+    return;
+
+  }
+
+
+  const url =
+    URL.createObjectURL(result.blob);
+
+
   const link =
     document.createElement("a");
 
 
-  link.href = data;
+  link.href = url;
 
-  link.download =
-    `${safeFilename(state.documentName)}.jpg`;
+  link.download = result.filename;
 
 
   link.click();
+
+
+  setTimeout(
+    () => URL.revokeObjectURL(url),
+    1000
+  );
 
 }
 
@@ -2838,7 +2959,12 @@ async function exportJPG() {
    SIMPLE PDF GENERATOR
 ===================================================== */
 
-async function exportPDF() {
+/*
+  Renders the PDF and stashes it on state.lastExport, without saving
+  it to disk. exportPDF() builds on this so the same render backs
+  both the download and the share sheet.
+*/
+async function buildPDFExport() {
 
   const images = [];
 
@@ -2910,8 +3036,27 @@ async function exportPDF() {
     );
 
 
+  const filename =
+    `${safeFilename(state.documentName)}.pdf`;
+
+
+  const result = { blob, filename };
+
+  state.lastExport = result;
+
+  return result;
+
+}
+
+
+async function exportPDF() {
+
+  const result =
+    await buildPDFExport();
+
+
   const url =
-    URL.createObjectURL(blob);
+    URL.createObjectURL(result.blob);
 
 
   const link =
@@ -2920,8 +3065,7 @@ async function exportPDF() {
 
   link.href = url;
 
-  link.download =
-    `${safeFilename(state.documentName)}.pdf`;
+  link.download = result.filename;
 
 
   document.body.appendChild(link);
@@ -4645,6 +4789,127 @@ function safeFilename(name) {
 }
 
 
+function dataURLToBlob(dataURL) {
+
+  const [header, base64] =
+    dataURL.split(",");
+
+  const mime =
+    header.match(/:(.*?);/)[1];
+
+  const binary =
+    atob(base64);
+
+  const bytes =
+    new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mime });
+
+}
+
+
+/*
+  Hands the just-exported file to the OS share sheet (Mail, WhatsApp,
+  Drive, AirDrop, etc.), the same way CamScanner's share button does.
+  Falls back to a toast on browsers/contexts without file sharing.
+*/
+async function shareLastExport() {
+
+  if (!state.pages.length) {
+
+    showToast(
+      "Add at least one page before sharing.",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  let result;
+
+  try {
+
+    result =
+      state.exportFormat === "jpg"
+        ? await buildJPGExport()
+        : await buildPDFExport();
+
+  } catch (error) {
+
+    console.error(error);
+
+    showToast(
+      "Couldn't prepare the file to share.",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  if (!result) {
+
+    return;
+
+  }
+
+
+  const file =
+    new File(
+      [result.blob],
+      result.filename,
+      { type: result.blob.type }
+    );
+
+
+  if (
+    !navigator.canShare ||
+    !navigator.canShare({ files: [file] })
+  ) {
+
+    showToast(
+      "Sharing isn't supported on this device or browser.",
+      "!"
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    await navigator.share({
+      files: [file],
+      title: state.documentName
+    });
+
+  } catch (error) {
+
+    // AbortError just means the user closed the share sheet.
+    if (error && error.name !== "AbortError") {
+
+      console.error(error);
+
+      showToast(
+        "Couldn't open the share sheet.",
+        "!"
+      );
+
+    }
+
+  }
+
+}
+
+
 function escapeHTML(text) {
 
   const div =
@@ -5265,6 +5530,24 @@ $("exportBtn")
     "click",
     exportDocument
   );
+
+
+// navigator.share needs a secure context and file-share support; on
+// anything else the button stays hidden rather than failing on tap.
+if (
+  navigator.share &&
+  navigator.canShare
+) {
+
+  $("shareBtn").hidden = false;
+
+  $("shareBtn")
+    .addEventListener(
+      "click",
+      shareLastExport
+    );
+
+}
 
 
 

@@ -1972,6 +1972,15 @@ svg {
   border-top: 1px solid var(--border);
 }
 
+.export-footer-row {
+  display: flex;
+  gap: 10px;
+}
+
+.export-footer-row .primary-wide-btn {
+  flex: 1;
+}
+
 .primary-wide-btn {
   width: 100%;
   min-height: 50px;
@@ -1988,6 +1997,41 @@ svg {
   transition:
     transform var(--fast) var(--ease),
     opacity var(--fast) var(--ease);
+}
+
+.secondary-wide-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  min-height: 50px;
+  padding: 15px 18px;
+
+  border-radius: 15px;
+  border: 1.5px solid var(--border);
+  font-size: 15.5px;
+  font-weight: 700;
+
+  background: var(--bg-elevated);
+  color: var(--text);
+
+  transition:
+    transform var(--fast) var(--ease),
+    opacity var(--fast) var(--ease);
+}
+
+.secondary-wide-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+.secondary-wide-btn:active {
+  transform: scale(0.985);
+}
+
+.secondary-wide-btn[hidden] {
+  display: none;
 }
 
 .primary-wide-btn:active {

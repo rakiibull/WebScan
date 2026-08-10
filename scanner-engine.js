@@ -1727,6 +1727,10 @@
           const originalValue = fileInput.files;
           fileInput.files = transfer.files;
 
+          // Lets handleFiles() tell this capture apart from a gallery
+          // import, since both arrive through the same file input.
+          window.webscanFromCamera = true;
+
           // Existing script.js already listens for this event and sends
           // imported images into the normal WebScan editor pipeline.
           fileInput.dispatchEvent(new Event("change", { bubbles: true }));

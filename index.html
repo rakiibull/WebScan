@@ -1356,12 +1356,29 @@
 
     <footer class="export-footer">
 
-      <button
-        id="exportBtn"
-        class="primary-wide-btn"
-      >
-        Export Document
-      </button>
+      <div class="export-footer-row">
+
+        <button
+          id="shareBtn"
+          class="secondary-wide-btn"
+          hidden
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17 8.4a2.7 2.7 0 1 0-2.6-3.4M17 20.4a2.7 2.7 0 1 0-2.6-3.4M7 14.6a2.7 2.7 0 1 0 0-5.2M9.4 12.3l5.2 3M14.6 6.9l-5.2 3"
+              stroke="currentColor" stroke-width="1.8" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Share
+        </button>
+
+        <button
+          id="exportBtn"
+          class="primary-wide-btn"
+        >
+          Export Document
+        </button>
+
+      </div>
 
     </footer>
 
