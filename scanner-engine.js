@@ -1765,6 +1765,25 @@
         progressMsg("capturing", "Capturing…")
       );
 
+      /*
+        A tap can land while autofocus is still hunting or right on a
+        hand tremor. Manual capture otherwise takes whatever frame is
+        on screen at that instant with no check at all, so a single
+        short, one-time wait is given here for the frame to settle
+        before it's locked in -- long enough for autofocus to catch up,
+        short enough that a capture that was already sharp is
+        unaffected. Reuses the same sharpness measurement the live
+        detection loop already relies on, just triggered on demand
+        instead of waiting for its next scheduled tick.
+      */
+      if (cvIsReady()) {
+        const freshness = measurePreviewQuality(capturePreviewFrame());
+
+        if (freshness && freshness.sharpness < BLUR_VARIANCE_MIN) {
+          await new Promise(r => setTimeout(r, 260));
+        }
+      }
+
       const raw = makeCaptureCanvas();
 
       let corners = lastCorners;

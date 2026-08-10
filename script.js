@@ -384,6 +384,43 @@ function resetTrackZoom() {
 }
 
 
+/*
+  Explicitly asks the active track for continuous autofocus, if the
+  browser exposes focus mode as a track capability.
+
+  The initial `getUserMedia` constraint is only a hint some browsers
+  ignore once the stream is already running, so it is reasserted here
+  the same way zoom is above -- without this, some Android/Chrome
+  combinations focus once on whatever the lens saw first and never
+  refocus as the document is brought into frame.
+*/
+function resetTrackFocus() {
+
+  const track =
+    state.stream
+      ?.getVideoTracks?.()[0];
+
+  const capabilities =
+    track?.getCapabilities
+      ? track.getCapabilities()
+      : {};
+
+  if (!capabilities.focusMode?.includes?.("continuous")) {
+    return;
+  }
+
+  track.applyConstraints({
+    advanced: [
+      {
+        focusMode: "continuous"
+      }
+    ]
+  })
+  .catch(() => {});
+
+}
+
+
 async function startCamera() {
 
   stopCamera();
@@ -422,9 +459,14 @@ async function startCamera() {
       isPortraitViewport();
 
 
-    const longEdge = 1920;
+    // Ideal only, so a device that can't reach this just hands back
+    // whatever its camera's closest supported size is -- document text
+    // needs more detail than 1080p can hold, and this costs detection
+    // nothing since findDocumentCorners works from its own downscaled
+    // copy regardless of the source size.
+    const longEdge = 3840;
 
-    const shortEdge = 1080;
+    const shortEdge = 2160;
 
 
     const constraints = {
@@ -462,6 +504,12 @@ async function startCamera() {
         */
         zoom: {
           ideal: 1
+        },
+
+        // Also a hint only; reasserted on the live track below since
+        // some browsers ignore it here once the stream has started.
+        focusMode: {
+          ideal: "continuous"
         }
       }
 
@@ -485,6 +533,8 @@ async function startCamera() {
       minimum (1x) rather than whatever the hardware started at.
     */
     resetTrackZoom();
+
+    resetTrackFocus();
 
 
     $("cameraLoading")
