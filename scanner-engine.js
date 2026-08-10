@@ -1284,7 +1284,12 @@
       }
     }
 
-    // Live 4-corner detection overlay disabled — uncomment to restore.
+    // Live 4-corner detection overlay disabled — uncomment paintCorners()
+    // below to restore it. lastCorners still needs to track the latest
+    // estimate even with the overlay off, since capture falls back to it
+    // when the fresh full-resolution detection at shutter time comes up
+    // empty.
+    lastCorners = displayedCorners;
     // paintCorners(displayedCorners);
 
     renderLoopId = requestAnimationFrame(renderTick);
