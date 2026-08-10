@@ -4956,6 +4956,15 @@ $("editorBackBtn")
 
       showScreen("camera");
 
+      // The stream from the previous page's capture is usually still
+      // alive here, but nothing guarantees it -- mobile browsers can
+      // suspend a backgrounded camera track, and every OTHER "go back
+      // to the camera" path (Retake, page-manager's +, a fresh scan)
+      // already restarts it defensively rather than assuming. Doing
+      // the same here closes that one gap: startCamera() always stops
+      // first, so this is safe even when the old stream is still fine.
+      startCamera();
+
     }
   );
 
@@ -5181,7 +5190,7 @@ $("resetEditBtn")
 
 
 document
-  .querySelectorAll(".filter-btn")
+  .querySelectorAll(".filter-card")
   .forEach(btn => {
 
     btn.addEventListener(
