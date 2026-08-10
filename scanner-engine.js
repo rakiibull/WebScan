@@ -1288,7 +1288,8 @@
       }
     }
 
-    paintCorners(displayedCorners);
+    // Live 4-corner detection overlay disabled — uncomment to restore.
+    // paintCorners(displayedCorners);
 
     renderLoopId = requestAnimationFrame(renderTick);
   }
